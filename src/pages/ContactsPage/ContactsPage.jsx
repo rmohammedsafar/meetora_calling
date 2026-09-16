@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCall } from '../../contexts/CallContext';
 import { Search, Phone, Video } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import Avatar from '../../components/Avatar/Avatar';
 import './ContactsPage.css';
 
@@ -12,7 +12,7 @@ const ContactsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const { currentUser } = useAuth();
-  const navigate = useNavigate();
+  const { placeCall } = useCall();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -39,9 +39,12 @@ const ContactsPage = () => {
     fetchUsers();
   }, [currentUser]);
 
-  const handleCall = (uid) => {
-    // Navigate to the meeting room with the target user's UID
-    navigate(`/room/${uid}`);
+  const handleCall = async (uid) => {
+    try {
+      await placeCall(uid, { video: true });
+    } catch (e) {
+      console.error("Failed to place call:", e);
+    }
   };
 
   const filteredUsers = users.filter(user => {

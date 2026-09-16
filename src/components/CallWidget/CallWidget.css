@@ -1,0 +1,202 @@
+.call-widget-overlay {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  pointer-events: none; /* Let clicks pass through the overlay itself */
+}
+
+.call-widget-container {
+  pointer-events: auto; /* Re-enable clicks for the actual widget */
+  background-color: var(--bg-dark, #0f172a);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Incoming Call */
+.incoming-call-view {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+}
+
+.incoming-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.incoming-header h3 {
+  color: white;
+  margin: 0;
+  font-size: 18px;
+}
+
+.incoming-header p {
+  color: #94a3b8;
+  margin: 0;
+  font-size: 14px;
+}
+
+.incoming-actions {
+  display: flex;
+  gap: 24px;
+}
+
+.btn-call-action {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.btn-call-action:hover {
+  transform: scale(1.1);
+}
+
+.btn-decline {
+  background-color: #ef4444;
+}
+
+.btn-accept {
+  background-color: #10b981;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* Active Call */
+.active-call-view {
+  display: flex;
+  flex-direction: column;
+  height: 480px;
+}
+
+.video-container {
+  flex: 1;
+  position: relative;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-placeholder {
+  position: absolute;
+  color: white;
+  font-size: 14px;
+}
+
+.local-video-container {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  width: 90px;
+  height: 120px;
+  background-color: #333;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.local-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* Mirror effect */
+}
+
+/* Controls */
+.call-controls-bar {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+  background-color: #0f172a;
+}
+
+.control-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background-color: #334155;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.control-btn:hover {
+  background-color: #475569;
+}
+
+.control-btn.active-mute {
+  background-color: #ef4444;
+}
+
+.control-btn.btn-danger {
+  background-color: #ef4444;
+}
+
+.control-btn.btn-danger:hover {
+  background-color: #dc2626;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .call-widget-overlay {
+    bottom: 80px; /* Above mobile bottom nav */
+    right: 16px;
+    left: 16px;
+    justify-content: center;
+  }
+  
+  .call-widget-container {
+    width: 100%;
+    max-width: 400px;
+  }
+}

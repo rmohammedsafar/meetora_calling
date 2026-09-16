@@ -5,10 +5,10 @@ import LandingPage from './pages/LandingPage/LandingPage';
 import LoginPage from './pages/LoginPage/LoginPage';
 import AppLayout from './layouts/AppLayout/AppLayout';
 import HomeDashboard from './pages/HomeDashboard/HomeDashboard';
-import MeetingRoom from './pages/MeetingRoom/MeetingRoom';
 import CalendarPage from './pages/CalendarPage/CalendarPage';
 import MessagesPage from './pages/MessagesPage/MessagesPage';
 import ContactsPage from './pages/ContactsPage/ContactsPage';
+import CallWidget from './components/CallWidget/CallWidget';
 
 import { CallProvider } from './contexts/CallContext';
 
@@ -27,11 +27,11 @@ function App() {
   return (
     <AuthProvider>
       <CallProvider>
+        <CallWidget />
         <Router>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/room/:id" element={<ProtectedRoute><MeetingRoom /></ProtectedRoute>} />
             
             {/* Authenticated App Routes */}
             <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>

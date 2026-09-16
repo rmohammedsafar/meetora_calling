@@ -72,7 +72,7 @@ const HomeDashboard = () => {
 
       {/* Quick Actions */}
       <div className="quick-actions">
-        <Button variant="primary" size="large" className="action-btn" onClick={() => navigate('/room/demo-123')}>
+        <Button variant="primary" size="large" className="action-btn" onClick={() => alert('Please select a contact from the Contacts tab to start a call.')}>
           <Video size={18} /> Start a meeting
         </Button>
         <Button variant="outline" size="large" className="action-btn action-btn-secondary">
