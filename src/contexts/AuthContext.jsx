@@ -25,18 +25,22 @@ export const AuthProvider = ({ children }) => {
   const saveUserToFirestore = async (user, additionalData = {}) => {
     if (!user) return;
     
-    const userRef = doc(db, 'users', user.uid);
-    const userSnap = await getDoc(userRef);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const userSnap = await getDoc(userRef);
 
-    // Only create/update if not exists or if we want to ensure latest data
-    if (!userSnap.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName || additionalData.displayName || 'Anonymous',
-        photoURL: user.photoURL || null,
-        createdAt: new Date().toISOString()
-      }, { merge: true });
+      // Only create/update if not exists or if we want to ensure latest data
+      if (!userSnap.exists()) {
+        await setDoc(userRef, {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || additionalData.displayName || 'Anonymous',
+          photoURL: user.photoURL || null,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch (error) {
+      console.error("Error saving user to Firestore (check your Firebase Rules!):", error);
     }
   };
 
