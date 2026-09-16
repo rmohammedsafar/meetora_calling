@@ -1,12 +1,39 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Bell, Video, Hash, Calendar as CalendarIcon, FileText } from 'lucide-react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/Button/Button';
 import Avatar from '../../components/Avatar/Avatar';
 import './HomeDashboard.css';
 
 const HomeDashboard = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const [contacts, setContacts] = useState([]);
+
+  useEffect(() => {
+    const fetchContacts = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const querySnapshot = await getDocs(usersRef);
+        const usersList = [];
+        querySnapshot.forEach((doc) => {
+          if (doc.id !== currentUser?.uid) {
+            usersList.push({ id: doc.id, ...doc.data() });
+          }
+        });
+        setContacts(usersList.slice(0, 5)); // Show up to 5 contacts
+      } catch (error) {
+        console.error("Error fetching contacts:", error);
+      }
+    };
+
+    if (currentUser) {
+      fetchContacts();
+    }
+  }, [currentUser]);
   return (
     <div className="dashboard-container">
       {/* Header */}
@@ -24,10 +51,10 @@ const HomeDashboard = () => {
           
           <div className="user-profile">
             <div className="user-info">
-              <span className="user-name">Sarah Chen</span>
-              <span className="user-role">Product Team</span>
+              <span className="user-name">{currentUser?.displayName || 'User'}</span>
+              <span className="user-role">{currentUser?.email || 'Member'}</span>
             </div>
-            <Avatar src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=100" name="Sarah Chen" />
+            <Avatar src={currentUser?.photoURL} name={currentUser?.displayName || 'User'} />
           </div>
         </div>
       </header>
@@ -35,11 +62,11 @@ const HomeDashboard = () => {
       {/* Welcome Section */}
       <div className="welcome-section">
         <div className="welcome-text">
-          <h1>Good morning, Sarah</h1>
+          <h1>Good morning, {currentUser?.displayName?.split(' ')[0] || 'there'}</h1>
           <p>Ready to make today productive?</p>
         </div>
         <div className="current-date">
-          Tue, Apr 16, 2024
+          {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
         </div>
       </div>
 
@@ -63,37 +90,8 @@ const HomeDashboard = () => {
           </div>
           
           <div className="card-list">
-            <div className="meeting-card">
-              <div className="meeting-time">
-                <span className="time-primary">10:00 AM</span>
-                <span className="time-secondary">30 min</span>
-              </div>
-              <div className="meeting-details">
-                <h3>Product team sync</h3>
-                <p>With 8 participants</p>
-              </div>
-            </div>
-            
-            <div className="meeting-card">
-              <div className="meeting-time">
-                <span className="time-primary">1:00 PM</span>
-                <span className="time-secondary">1 hr</span>
-              </div>
-              <div className="meeting-details">
-                <h3>Design review</h3>
-                <p>Meeting room</p>
-              </div>
-            </div>
-            
-            <div className="meeting-card">
-              <div className="meeting-time">
-                <span className="time-primary">3:00 PM</span>
-                <span className="time-secondary">45 min</span>
-              </div>
-              <div className="meeting-details">
-                <h3>Customer interview</h3>
-                <p>With Alex Rivera</p>
-              </div>
+            <div className="empty-state" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'var(--bg-white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+              <p>No upcoming meetings</p>
             </div>
           </div>
           
@@ -110,48 +108,8 @@ const HomeDashboard = () => {
           </div>
           
           <div className="card-list list-no-gap">
-            <div className="conversation-item">
-              <Avatar src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=100" name="Product Team" />
-              <div className="conv-details">
-                <div className="conv-header">
-                  <h3>Product Team</h3>
-                  <span className="conv-time">10:14 AM</span>
-                </div>
-                <p><strong>Emma:</strong> Great progress today!</p>
-              </div>
-            </div>
-            
-            <div className="conversation-item">
-              <Avatar src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&q=80&w=100" name="Design" />
-              <div className="conv-details">
-                <div className="conv-header">
-                  <h3>Design</h3>
-                  <span className="conv-time">Yesterday</span>
-                </div>
-                <p><strong>You:</strong> Sharing the latest mockups...</p>
-              </div>
-            </div>
-            
-            <div className="conversation-item">
-              <Avatar src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100" name="Alex Rivera" />
-              <div className="conv-details">
-                <div className="conv-header">
-                  <h3>Alex Rivera</h3>
-                  <span className="conv-time">Yesterday</span>
-                </div>
-                <p>Let's catch up this week.</p>
-              </div>
-            </div>
-            
-            <div className="conversation-item">
-              <Avatar src="https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&q=80&w=100" name="Marketing" />
-              <div className="conv-details">
-                <div className="conv-header">
-                  <h3>Marketing</h3>
-                  <span className="conv-time">Yesterday</span>
-                </div>
-                <p><strong>Sara:</strong> Here are the assets.</p>
-              </div>
+            <div className="empty-state" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <p>No recent conversations</p>
             </div>
           </div>
         </div>
@@ -163,41 +121,21 @@ const HomeDashboard = () => {
           </div>
           
           <div className="card-list list-no-gap">
-            <div className="contact-item">
-              <Avatar src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=100" name="Emma Wilson" size="small" />
-              <div className="contact-details">
-                <h3>Emma Wilson</h3>
-                <span className="status status-online">Online</span>
+            {contacts.length > 0 ? (
+              contacts.map(contact => (
+                <div key={contact.id} className="contact-item">
+                  <Avatar src={contact.photoURL} name={contact.displayName} size="small" />
+                  <div className="contact-details">
+                    <h3>{contact.displayName}</h3>
+                    <span className="status status-online">Online</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="empty-state" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <p>No contacts found</p>
               </div>
-            </div>
-            <div className="contact-item">
-              <Avatar src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100" name="James Park" size="small" />
-              <div className="contact-details">
-                <h3>James Park</h3>
-                <span className="status status-meeting">In a meeting</span>
-              </div>
-            </div>
-            <div className="contact-item">
-              <Avatar src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=100" name="Priya Shah" size="small" />
-              <div className="contact-details">
-                <h3>Priya Shah</h3>
-                <span className="status status-offline">Offline</span>
-              </div>
-            </div>
-            <div className="contact-item">
-              <Avatar src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100" name="Daniel Kim" size="small" />
-              <div className="contact-details">
-                <h3>Daniel Kim</h3>
-                <span className="status status-online">Online</span>
-              </div>
-            </div>
-            <div className="contact-item">
-              <Avatar src="https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&q=80&w=100" name="Olivia Martin" size="small" />
-              <div className="contact-details">
-                <h3>Olivia Martin</h3>
-                <span className="status status-online">Online</span>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
