@@ -10,3 +10,12 @@
   padding: 32px 40px;
   max-width: 1200px;
 }
+
+
+@media (max-width: 768px) {
+  .app-main {
+    margin-left: 0 !important;
+    padding: 16px !important;
+    margin-bottom: 70px !important; 
+  }
+}

@@ -8,7 +8,8 @@ import {
   signOut,
   updateProfile
 } from 'firebase/auth';
-import { auth } from '../firebase';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
 
 const AuthContext = createContext();
 
@@ -20,6 +21,25 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Helper to save user to Firestore
+  const saveUserToFirestore = async (user, additionalData = {}) => {
+    if (!user) return;
+    
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+
+    // Only create/update if not exists or if we want to ensure latest data
+    if (!userSnap.exists()) {
+      await setDoc(userRef, {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || additionalData.displayName || 'Anonymous',
+        photoURL: user.photoURL || null,
+        createdAt: new Date().toISOString()
+      }, { merge: true });
+    }
+  };
+
   // Sign Up
   const signup = async (email, password, fullName) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -27,6 +47,8 @@ export const AuthProvider = ({ children }) => {
     await updateProfile(userCredential.user, {
       displayName: fullName
     });
+    // Save to Firestore
+    await saveUserToFirestore(userCredential.user, { displayName: fullName });
     return userCredential;
   };
 
@@ -36,9 +58,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Google Login
-  const loginWithGoogle = () => {
+  const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    return signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider);
+    await saveUserToFirestore(result.user);
+    return result;
   };
 
   // Log Out

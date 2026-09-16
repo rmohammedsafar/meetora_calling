@@ -435,3 +435,11 @@
     display: none;
   }
 }
+
+
+@media (max-width: 768px) {
+  .login-container { flex-direction: column !important; }
+  .login-visual-panel { display: none !important; }
+  .login-form-panel { padding: 24px 16px !important; justify-content: center !important;}
+  .login-box { width: 100% !important; padding: 24px 16px !important; }
+}

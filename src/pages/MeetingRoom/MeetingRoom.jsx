@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Video, Mic, MicOff, MonitorUp, Circle, MoreHorizontal, 
   PhoneOff, LayoutGrid, Send, Paperclip, Smile
@@ -6,10 +6,72 @@ import {
 import Avatar from '../../components/Avatar/Avatar';
 import Logo from '../../components/Logo/Logo';
 import './MeetingRoom.css';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { useCall } from '../../contexts/CallContext';
 
 const MeetingRoom = () => {
+  const { id: roomId } = useParams();
+  const { isVactConnected, activeCall, placeCall, endCall, incomingCalls, acceptCall } = useCall();
   const [activeTab, setActiveTab] = useState('chat');
+  
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+
+  const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+
+  useEffect(() => {
+    if (activeCall) {
+      if (localVideoRef.current && activeCall.localStream) {
+        localVideoRef.current.srcObject = activeCall.localStream;
+      }
+      if (remoteVideoRef.current && activeCall.remoteStream) {
+        remoteVideoRef.current.srcObject = activeCall.remoteStream;
+      }
+    }
+  }, [activeCall]);
+
+  const handleStartCall = async () => {
+    try {
+      await placeCall(roomId, { video: true });
+    } catch (e) {
+      console.error('Failed to start call', e);
+    }
+  };
+
+  const handleAcceptCall = async (incoming) => {
+    try {
+      await acceptCall(incoming);
+    } catch (e) {
+      console.error('Failed to accept', e);
+    }
+  };
+
+  const toggleMute = () => {
+    if (activeCall) {
+      if (isMuted) activeCall.unmuteAudio();
+      else activeCall.muteAudio();
+    }
+    setIsMuted(!isMuted);
+  };
+
+  const toggleVideo = () => {
+    if (activeCall) {
+      if (isVideoOff) activeCall.unmuteVideo();
+      else activeCall.muteVideo();
+    }
+    setIsVideoOff(!isVideoOff);
+  };
+
+  const handleScreenShare = async () => {
+    if (activeCall) {
+      try {
+        await activeCall.startScreenShare();
+      } catch (e) {
+        console.error('Failed to share screen', e);
+      }
+    }
+  };
 
   return (
     <div className="meeting-room">
@@ -32,61 +94,84 @@ const MeetingRoom = () => {
         {/* Video Grid */}
         <div className="video-area">
           <div className="video-grid">
-            <div className="video-participant">
-              <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=800" alt="Sarah Chen" />
-              <div className="participant-label">
-                Sarah Chen
-                <div className="audio-indicator"><Mic size={12} /></div>
+            {/* If there's an active call, show the remote and local streams */}
+            {activeCall ? (
+              <>
+                <div className="video-participant main-speaker">
+                  <video 
+                    ref={remoteVideoRef} 
+                    autoPlay 
+                    playsInline 
+                    className="vact-video"
+                  />
+                  <div className="participant-info">
+                    <span className="participant-name">Remote User</span>
+                  </div>
+                </div>
+                <div className="video-participant local-participant">
+                  <video 
+                    ref={localVideoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted 
+                    className="vact-video"
+                  />
+                  <div className="participant-info">
+                    <span className="participant-name">You</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="waiting-room">
+                {incomingCalls.length > 0 ? (
+                  <div className="incoming-calls">
+                    <h3>Incoming Calls</h3>
+                    {incomingCalls.map((c, i) => (
+                      <div key={i} className="incoming-card">
+                        <p>{c.callerName || 'Someone'} is calling...</p>
+                        <button onClick={() => handleAcceptCall(c)} className="btn-accept">Accept</button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="start-call-prompt">
+                    <h3>Ready to join?</h3>
+                    <button 
+                      className="btn-start-call" 
+                      onClick={handleStartCall}
+                      disabled={!isVactConnected}
+                    >
+                      {isVactConnected ? 'Start Call' : 'Connecting to VACT...'}
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-            
-            <div className="video-participant">
-              <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=800" alt="Daniel Kim" />
-              <div className="participant-label">
-                Daniel Kim
-                <div className="audio-indicator"><Mic size={12} /></div>
-              </div>
-            </div>
-            
-            <div className="video-participant">
-              <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=800" alt="Marcus Lee" />
-              <div className="participant-label">
-                Marcus Lee
-                <div className="audio-indicator muted"><MicOff size={12} /></div>
-              </div>
-            </div>
-            
-            <div className="video-participant">
-              <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=800" alt="Emma Wilson" />
-              <div className="participant-label">
-                Emma Wilson
-                <div className="audio-indicator"><Mic size={12} /></div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Call Controls Bar */}
-          <div className="controls-bar">
+          <div className="call-controls">
+            <div className="controls-left">
+              <button className="control-btn" title="Layout">
+                <LayoutGrid size={20} />
+              </button>
+            </div>
+            
             <div className="controls-center">
-              <button className="control-button active">
-                <Mic size={20} />
-                <span>Mute</span>
+              <button className={`control-btn ${isMuted ? 'active-mute' : ''}`} onClick={toggleMute} title="Toggle Audio">
+                {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
               </button>
-              <button className="control-button active">
+              <button className={`control-btn ${isVideoOff ? 'active-mute' : ''}`} onClick={toggleVideo} title="Toggle Video">
                 <Video size={20} />
-                <span>Stop video</span>
               </button>
-              <button className="control-button">
+              <button className="control-btn" onClick={handleScreenShare} title="Share Screen">
                 <MonitorUp size={20} />
-                <span>Share</span>
               </button>
-              <button className="control-button">
-                <Circle size={20} />
-                <span>Record</span>
-              </button>
-              <button className="control-button">
+              <button className="control-btn" title="More options">
                 <MoreHorizontal size={20} />
-                <span>More</span>
+              </button>
+              <button className="control-btn btn-danger" onClick={endCall} title="Leave Call">
+                <PhoneOff size={20} color="white" />
               </button>
             </div>
             <div className="controls-right">
