@@ -71,7 +71,11 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Ensure user is in Firestore even if they signed up previously
+        await saveUserToFirestore(user);
+      }
       setCurrentUser(user);
       setLoading(false);
     });
