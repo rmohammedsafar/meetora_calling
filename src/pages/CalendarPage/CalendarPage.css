@@ -1,0 +1,245 @@
+.calendar-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.calendar-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.calendar-subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.calendar-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-today {
+  background-color: var(--bg-white);
+  border: 1px solid var(--border-color);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text-dark);
+}
+
+.nav-arrows {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-arrow {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-arrow:hover {
+  color: var(--text-dark);
+}
+
+.current-month {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.view-toggles {
+  display: flex;
+  background-color: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px;
+}
+
+.toggle-btn {
+  background: none;
+  border: none;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.toggle-btn.active {
+  background-color: var(--bg-light);
+  color: var(--text-dark);
+}
+
+.calendar-grid-container {
+  flex: 1;
+  background-color: var(--bg-white);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.calendar-days-header {
+  display: grid;
+  grid-template-columns: 60px repeat(5, 1fr); /* Time col + 5 days */
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+  padding-top: 16px;
+}
+
+.time-col-header {
+  width: 60px;
+}
+
+.day-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.day-name {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.day-number {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--text-dark);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.day-col.active .day-name {
+  color: var(--primary-color);
+}
+
+.day-col.active .day-number {
+  background-color: var(--primary-color);
+  color: white;
+}
+
+.calendar-grid-body {
+  flex: 1;
+  position: relative;
+  overflow-y: auto;
+  min-height: 540px; /* 9 hours * 60px */
+}
+
+.time-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.time-row {
+  height: 60px; /* Each hour is 60px tall */
+  display: flex;
+}
+
+.time-label {
+  width: 60px;
+  padding-right: 12px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+  transform: translateY(-50%); /* Center on the line */
+}
+
+.time-line {
+  flex: 1;
+  border-top: 1px solid var(--border-color);
+}
+
+.events-container {
+  position: absolute;
+  top: 0;
+  left: 60px; /* Offset for time column */
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  pointer-events: none; /* Let clicks pass through to grid if needed */
+}
+
+.event {
+  position: relative;
+  margin: 0 8px; /* Gap between columns */
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border-left: 3px solid;
+  pointer-events: auto;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.event-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.event-time {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.event-blue {
+  background-color: #eff6ff; /* light blue */
+  border-left-color: #3b82f6;
+  color: #1e3a8a;
+}
+
+.event-purple {
+  background-color: #f3e8ff; /* light purple */
+  border-left-color: #a855f7;
+  color: #581c87;
+}
+
+.event-green {
+  background-color: #ecfdf5; /* light green */
+  border-left-color: #10b981;
+  color: #064e3b;
+}

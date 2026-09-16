@@ -1,0 +1,28 @@
+.meetora-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-image {
+  display: block;
+  object-fit: contain;
+  border-radius: 6px;
+  /* Ensure image is strictly visible regardless of background */
+}
+
+/* Sizes */
+.meetora-logo.small .logo-image {
+  height: 24px;
+  min-width: 80px;
+}
+
+.meetora-logo.medium .logo-image {
+  height: 36px;
+  min-width: 120px;
+}
+
+.meetora-logo.large .logo-image {
+  height: 48px;
+  min-width: 160px;
+}
