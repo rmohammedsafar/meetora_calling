@@ -50,26 +50,34 @@ export const CallProvider = ({ children }) => {
 
         client = new VactClient(appId);
 
-        // VACT immediately sends the calls that were already ringing when a
-        // session reconnects. After a browser reload those are stale calls
-        // from the previous page session, not new incoming calls. Clear that
-        // initial snapshot so ghost calls do not reappear after reload.
-        let isInitialIncomingSnapshot = true;
+        // Keep track of calls that were already ringing in this browser. If
+        // the page reloads, VACT can return those same calls again because
+        // they remain active on the server until declined, cancelled, or the
+        // ring window expires. Those IDs are stale for this page session.
+        const ringingStorageKey = 'meetora:ringing-call-ids';
+        const getStoredRingingIds = () => {
+          try {
+            return new Set(JSON.parse(localStorage.getItem(ringingStorageKey) || '[]'));
+          } catch {
+            return new Set();
+          }
+        };
+        const saveStoredRingingIds = (ids) => {
+          localStorage.setItem(ringingStorageKey, JSON.stringify([...ids]));
+        };
 
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
-          if (isInitialIncomingSnapshot) {
-            isInitialIncomingSnapshot = false;
-            calls.forEach((incoming) => {
-              handledCallIds.current.add(incoming.id);
-              incoming.decline().catch((error) => {
-                console.warn('Failed to clear stale ringing call:', error);
-              });
+          const storedRingingIds = getStoredRingingIds();
+          const staleCalls = calls.filter(c => storedRingingIds.has(c.id));
+          staleCalls.forEach((incoming) => {
+            handledCallIds.current.add(incoming.id);
+            storedRingingIds.delete(incoming.id);
+            incoming.decline().catch((error) => {
+              console.warn('Failed to clear stale ringing call:', error);
             });
-            setIncomingCalls([]);
-            stopRingtone();
-            return;
-          }
+          });
+          saveStoredRingingIds(storedRingingIds);
 
           // Filter out calls we've already handled (accepted/declined)
           let newCalls = calls.filter(c => !handledCallIds.current.has(c.id));
@@ -98,6 +106,9 @@ export const CallProvider = ({ children }) => {
           } else {
             setIncomingCalls([...uniqueCalls]);
             if (uniqueCalls.length > 0) {
+              const currentRingingIds = getStoredRingingIds();
+              uniqueCalls.forEach(c => currentRingingIds.add(c.id));
+              saveStoredRingingIds(currentRingingIds);
               playIncomingRingtone();
             } else {
               stopRingtone();
