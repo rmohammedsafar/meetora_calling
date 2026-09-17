@@ -23,8 +23,25 @@ export const CallProvider = ({ children }) => {
   }, [activeCall]);
   const [incomingCalls, setIncomingCalls] = useState([]);
   const [isVactConnected, setIsVactConnected] = useState(false);
-  const handledCallIds = useRef(new Set());
   const isTransitioningRef = useRef(false);
+
+  // Load handled calls from localStorage to survive page reloads
+  const handledCallStorageKey = 'meetora:handled-call-ids';
+  const getHandledCallIds = () => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(handledCallStorageKey) || '[]'));
+    } catch {
+      return new Set();
+    }
+  };
+  const addHandledCallId = (id) => {
+    const ids = getHandledCallIds();
+    ids.add(id);
+    // Keep only the most recent 50 to avoid infinite growth
+    const idsArray = [...ids].slice(-50);
+    localStorage.setItem(handledCallStorageKey, JSON.stringify(idsArray));
+  };
+  const hasHandledCall = (id) => getHandledCallIds().has(id);
 
   useEffect(() => {
     let isCancelled = false;
@@ -52,44 +69,18 @@ export const CallProvider = ({ children }) => {
         let isVactReady = false;
         let initialIncomingCalls = [];
 
-        // Keep track of calls that were already ringing in this browser. If
-        // the page reloads, VACT can return those same calls again because
-        // they remain active on the server until declined, cancelled, or the
-        // ring window expires. Those IDs are stale for this page session.
-        const ringingStorageKey = 'meetora:ringing-call-ids';
-        const getStoredRingingIds = () => {
-          try {
-            return new Set(JSON.parse(localStorage.getItem(ringingStorageKey) || '[]'));
-          } catch {
-            return new Set();
-          }
-        };
-        const saveStoredRingingIds = (ids) => {
-          localStorage.setItem(ringingStorageKey, JSON.stringify([...ids]));
-        };
-
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
-          // Do not show calls that were already ringing before this tab
-          // finished reconnecting. They are recorded as missed below.
+          // The SDK can replay calls that were already ringing before this
+          // tab connected. Hold the initial feed until connect settles so
+          // those calls never reach the incoming-call UI.
           if (!isVactReady) {
             initialIncomingCalls = calls;
             return;
           }
 
-          const storedRingingIds = getStoredRingingIds();
-          const staleCalls = calls.filter(c => storedRingingIds.has(c.id));
-          staleCalls.forEach((incoming) => {
-            handledCallIds.current.add(incoming.id);
-            storedRingingIds.delete(incoming.id);
-            incoming.decline().catch((error) => {
-              console.warn('Failed to clear stale ringing call:', error);
-            });
-          });
-          saveStoredRingingIds(storedRingingIds);
-
-          // Filter out calls we've already handled (accepted/declined)
-          let newCalls = calls.filter(c => !handledCallIds.current.has(c.id));
+          // Filter out calls we've already handled (accepted/declined) in this or previous sessions
+          let newCalls = calls.filter(c => !hasHandledCall(c.id));
           
           // Deduplicate calls from the SAME user (take only the first one, auto-decline the rest)
           const seenUsers = new Set();
@@ -99,7 +90,7 @@ export const CallProvider = ({ children }) => {
             if (seenUsers.has(incoming.fromUserId)) {
               // This is a duplicate ghost call from the same person! Decline it instantly.
               incoming.decline().catch(console.error);
-              handledCallIds.current.add(incoming.id);
+              addHandledCallId(incoming.id);
             } else {
               seenUsers.add(incoming.fromUserId);
               uniqueCalls.push(incoming);
@@ -110,14 +101,11 @@ export const CallProvider = ({ children }) => {
             // User is on another call; auto-decline new incoming calls
             uniqueCalls.forEach(incoming => {
               incoming.decline().catch(console.error);
-              handledCallIds.current.add(incoming.id);
+              addHandledCallId(incoming.id);
             });
           } else {
             setIncomingCalls([...uniqueCalls]);
             if (uniqueCalls.length > 0) {
-              const currentRingingIds = getStoredRingingIds();
-              uniqueCalls.forEach(c => currentRingingIds.add(c.id));
-              saveStoredRingingIds(currentRingingIds);
               playIncomingRingtone();
             } else {
               stopRingtone();
@@ -150,21 +138,17 @@ export const CallProvider = ({ children }) => {
           throw new Error('connect() failed! AppID: ' + appId + ' | Token: ' + accessToken + ' | Reason: ' + connErr.message);
         }
 
-        // VACT may return calls that were ringing before this tab opened or
-        // reloaded. Clear them from the server and keep them in call history
-        // as missed instead of showing a ghost incoming-call popup.
+        // Give VACT's initial event feed time to arrive, then clear all calls
+        // that existed before this page session and record them as missed.
+        await new Promise(resolve => setTimeout(resolve, 5000));
         const staleIncomingCalls = initialIncomingCalls;
         isVactReady = true;
         initialIncomingCalls = [];
         staleIncomingCalls.forEach((incoming) => {
-          handledCallIds.current.add(incoming.id);
+          addHandledCallId(incoming.id);
           const type = incoming.video ? 'video' : 'audio';
           const threadId = [currentUser.uid, incoming.fromUserId].sort().join('_');
-
-          incoming.decline().catch((error) => {
-            console.warn('Failed to clear stale ringing call:', error);
-          });
-
+          incoming.decline().catch(error => console.warn('Failed to clear stale call:', error));
           setDoc(doc(db, 'call_logs', incoming.id), {
             callerId: incoming.fromUserId,
             calleeId: currentUser.uid,
@@ -172,10 +156,7 @@ export const CallProvider = ({ children }) => {
             type,
             durationSeconds: 0,
             timestamp: serverTimestamp(),
-          }, { merge: true }).catch((error) => {
-            console.warn('Failed to record stale call as missed:', error);
-          });
-
+          }, { merge: true }).catch(error => console.warn('Failed to record missed call:', error));
           addDoc(collection(db, 'messages'), {
             threadId,
             participants: [currentUser.uid, incoming.fromUserId],
@@ -185,9 +166,7 @@ export const CallProvider = ({ children }) => {
             durationSeconds: 0,
             senderId: incoming.fromUserId,
             timestamp: serverTimestamp(),
-          }).catch((error) => {
-            console.warn('Failed to record missed call in messages:', error);
-          });
+          }).catch(error => console.warn('Failed to record missed message:', error));
         });
         setIncomingCalls([]);
         stopRingtone();
@@ -325,10 +304,10 @@ export const CallProvider = ({ children }) => {
       incomingCalls.forEach(c => {
         if (c.id !== incomingCall.id) {
           c.decline().catch(e => console.warn('Ghost decline failed', e));
-          handledCallIds.current.add(c.id);
+          addHandledCallId(c.id);
         }
       });
-      handledCallIds.current.add(incomingCall.id);
+      addHandledCallId(incomingCall.id);
 
       handleCallDisconnect(call);
       setActiveCall(call);
@@ -375,10 +354,10 @@ export const CallProvider = ({ children }) => {
       incomingCalls.forEach(c => {
         if (c.id !== incomingCall.id && c.fromUserId === incomingCall.fromUserId) {
           c.decline().catch(e => console.warn('Ghost decline failed', e));
-          handledCallIds.current.add(c.id);
+          addHandledCallId(c.id);
         }
       });
-      handledCallIds.current.add(incomingCall.id);
+      addHandledCallId(incomingCall.id);
       
       setIncomingCalls(prev => prev.filter(c => c.id !== incomingCall.id));
     } catch (error) {
