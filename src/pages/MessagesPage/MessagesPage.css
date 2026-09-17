@@ -316,6 +316,81 @@
   border-top-right-radius: 4px;
 }
 
+.chat-bubble-wrapper {
+  display: flex;
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.chat-bubble-wrapper.own {
+  justify-content: flex-end;
+}
+
+.chat-bubble {
+  max-width: 70%;
+  padding: 10px 16px;
+  background-color: var(--bg-light);
+  color: var(--text-dark);
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.chat-bubble-wrapper.own .chat-bubble {
+  background-color: var(--primary-color);
+  color: white;
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 4px;
+}
+
+.chat-bubble p {
+  margin: 0 0 4px 0;
+  word-break: break-word;
+}
+
+.msg-time {
+  font-size: 11px;
+  opacity: 0.7;
+  display: block;
+  text-align: right;
+}
+
+.chat-call-log-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin: 16px 0;
+}
+
+.chat-call-log {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--bg-light);
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--text-dark);
+  border: 1px solid var(--border-color);
+}
+
+.call-log-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.call-log-content strong {
+  font-weight: 600;
+}
+
+.call-log-content span {
+  color: var(--text-muted);
+}
+
 .bubble-attachment {
   padding: 16px;
 }

@@ -8,6 +8,7 @@ import HomeDashboard from './pages/HomeDashboard/HomeDashboard';
 import CalendarPage from './pages/CalendarPage/CalendarPage';
 import MessagesPage from './pages/MessagesPage/MessagesPage';
 import ContactsPage from './pages/ContactsPage/ContactsPage';
+import RecentCallsPage from './pages/RecentCallsPage/RecentCallsPage';
 import CallWidget from './components/CallWidget/CallWidget';
 
 import { CallProvider } from './contexts/CallContext';
@@ -38,6 +39,7 @@ function App() {
               <Route index element={<HomeDashboard />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="messages" element={<MessagesPage />} />
+              <Route path="calls" element={<RecentCallsPage />} />
               <Route path="contacts" element={<ContactsPage />} />
               {/* Placeholders for remaining app routes */}
               <Route path="meetings" element={<div>Meetings Page (To be implemented)</div>} />

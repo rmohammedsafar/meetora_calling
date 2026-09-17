@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Edit, Phone, Video, MoreVertical, 
-  Smile, Paperclip, Send, FileText, MessageSquare
+  Smile, Paperclip, Send, FileText, MessageSquare, PhoneMissed, PhoneOutgoing, PhoneIncoming
 } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import Avatar from '../../components/Avatar/Avatar';
@@ -13,6 +13,14 @@ const MessagesPage = () => {
   const { currentUser } = useAuth();
   const [contacts, setContacts] = useState([]);
   const [activeContact, setActiveContact] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const messagesEndRef = useRef(null);
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return '';
+    return timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
 
   useEffect(() => {
     const fetchContacts = async () => {
@@ -35,6 +43,48 @@ const MessagesPage = () => {
       fetchContacts();
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    if (!currentUser || !activeContact) return;
+    
+    const threadId = [currentUser.uid, activeContact.id].sort().join('_');
+    const q = query(
+      collection(db, 'messages'),
+      where('threadId', '==', threadId),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = [];
+      snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
+      setMessages(msgs);
+      setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, activeContact]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !currentUser || !activeContact) return;
+    
+    const text = newMessage;
+    setNewMessage('');
+    
+    const threadId = [currentUser.uid, activeContact.id].sort().join('_');
+    try {
+      await addDoc(collection(db, 'messages'), {
+        threadId,
+        participants: [currentUser.uid, activeContact.id],
+        text,
+        senderId: currentUser.uid,
+        timestamp: serverTimestamp(),
+        type: 'text'
+      });
+    } catch (error) {
+      console.error("Failed to send message", error);
+    }
+  };
 
   return (
     <div className="messages-page">
@@ -109,20 +159,59 @@ const MessagesPage = () => {
             </header>
 
             {/* Chat Messages */}
-            <div className="chat-messages-container" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)' }}>
-              <MessageSquare size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
-              <h3>No messages yet</h3>
-              <p>Send a message to start the conversation with {activeContact.displayName.split(' ')[0]}</p>
+            <div className="chat-messages-container">
+              {messages.length === 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', height: '100%' }}>
+                  <MessageSquare size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
+                  <h3>No messages yet</h3>
+                  <p>Send a message to start the conversation with {activeContact.displayName.split(' ')[0]}</p>
+                </div>
+              ) : (
+                messages.map(msg => {
+                  if (msg.type === 'call_log') {
+                    const isCaller = msg.senderId === currentUser.uid;
+                    const isMissed = !isCaller && (msg.status === 'missed' || msg.status === 'declined');
+                    return (
+                      <div key={msg.id} className="chat-call-log-wrapper">
+                        <div className="chat-call-log">
+                          {isMissed ? <PhoneMissed size={16} color="#ef4444" /> : isCaller ? <PhoneOutgoing size={16} /> : <PhoneIncoming size={16} />}
+                          <div className="call-log-content">
+                            <strong>{isMissed ? 'Missed Call' : msg.status === 'completed' ? 'Call Ended' : 'Cancelled Call'}</strong>
+                            <span>{msg.durationSeconds ? `${Math.floor(msg.durationSeconds / 60)}m ${msg.durationSeconds % 60}s` : formatTime(msg.timestamp)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const isOwn = msg.senderId === currentUser.uid;
+                  return (
+                    <div key={msg.id} className={`chat-bubble-wrapper ${isOwn ? 'own' : ''}`}>
+                      <div className="chat-bubble">
+                        <p>{msg.text}</p>
+                        <span className="msg-time">{formatTime(msg.timestamp)}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Chat Input */}
             <div className="chat-input-container">
-              <div className="chat-input-box">
-                <button className="input-action-btn"><Paperclip size={20} /></button>
-                <input type="text" placeholder="Type a message..." className="main-chat-input" />
-                <button className="input-action-btn"><Smile size={20} /></button>
-                <button className="input-send-btn"><Send size={18} /></button>
-              </div>
+              <form className="chat-input-box" onSubmit={handleSendMessage}>
+                <button type="button" className="input-action-btn"><Paperclip size={20} /></button>
+                <input 
+                  type="text" 
+                  placeholder="Type a message..." 
+                  className="main-chat-input" 
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                />
+                <button type="button" className="input-action-btn"><Smile size={20} /></button>
+                <button type="submit" className="input-send-btn" disabled={!newMessage.trim()}><Send size={18} /></button>
+              </form>
             </div>
           </>
         ) : (

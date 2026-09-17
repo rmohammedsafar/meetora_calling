@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { Video, Home, Calendar, Users, MessageSquare, Settings, HelpCircle } from 'lucide-react';
+import { Video, Home, Calendar, Users, MessageSquare, Settings, HelpCircle, Phone } from 'lucide-react';
 import Logo from '../Logo/Logo';
 import './Sidebar.css';
 
@@ -26,6 +26,10 @@ const Sidebar = () => {
         <NavLink to="/app/contacts" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <Users size={20} />
           <span>Contacts</span>
+        </NavLink>
+        <NavLink to="/app/calls" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
+          <Phone size={20} />
+          <span>Calls</span>
         </NavLink>
         <NavLink to="/app/messages" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <MessageSquare size={20} />

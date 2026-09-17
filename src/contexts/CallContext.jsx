@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { VactClient } from '@firstlogicmetalab/client';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
+import { doc, setDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
+import { db } from '../firebase';
 
 const CallContext = createContext();
 
@@ -113,16 +115,73 @@ export const CallProvider = ({ children }) => {
   }, [currentUser]);
 
   const [callState, setCallState] = useState('idle');
+  const callStartTimes = useRef({});
+
+  const writeCallLog = async (call, status, duration = 0) => {
+    try {
+      const callerId = call.isCaller ? currentUser.uid : call.otherUserId;
+      const calleeId = call.isCaller ? call.otherUserId : currentUser.uid;
+      const hasLocalVideo = call.localStream?.getVideoTracks().length > 0;
+      const hasRemoteVideo = call.remoteStream?.getVideoTracks().length > 0;
+      const type = (hasLocalVideo || hasRemoteVideo) ? 'video' : 'audio';
+
+      const logRef = doc(db, 'call_logs', call.id);
+      await setDoc(logRef, {
+        callerId,
+        calleeId,
+        status, 
+        type,
+        durationSeconds: duration,
+        timestamp: serverTimestamp(),
+      }, { merge: true });
+
+      // If we are the caller (to prevent duplicate messages), write to chat history
+      // Wait, if caller is offline, maybe it doesn't get written? For simplicity, we just have the caller write it if it's completed or missed timeout.
+      // Actually, if we just let the caller write the chat log, it won't duplicate.
+      if (call.isCaller) {
+        const threadId = [callerId, calleeId].sort().join('_');
+        await addDoc(collection(db, 'messages'), {
+          threadId,
+          participants: [callerId, calleeId],
+          type: 'call_log',
+          status,
+          callType: type,
+          durationSeconds: duration,
+          senderId: callerId,
+          timestamp: serverTimestamp(),
+        });
+      }
+    } catch (e) {
+      console.error('Failed to write call log', e);
+    }
+  };
 
   const handleCallDisconnect = (call) => {
     if (call) {
       setCallState(call.state);
       call.onState = (state) => {
         setCallState(state);
-        if (state === 'connected' || state === 'ended' || state === 'failed') {
+        
+        if (state === 'connected') {
           stopRingtone();
+          callStartTimes.current[call.id] = Date.now();
         }
+        
         if (state === 'ended' || state === 'failed') {
+          stopRingtone();
+          
+          let status = 'missed';
+          let duration = 0;
+          
+          if (callStartTimes.current[call.id]) {
+            status = 'completed';
+            duration = Math.floor((Date.now() - callStartTimes.current[call.id]) / 1000);
+            delete callStartTimes.current[call.id];
+          }
+          
+          // Write log for caller and callee
+          writeCallLog(call, status, duration);
+
           setActiveCall(null);
           setCallState('idle');
         }
@@ -173,6 +232,30 @@ export const CallProvider = ({ children }) => {
     stopRingtone();
     try {
       await incomingCall.decline();
+      
+      // Write explicitly declined log
+      const logRef = doc(db, 'call_logs', incomingCall.id);
+      await setDoc(logRef, {
+        callerId: incomingCall.fromUserId,
+        calleeId: currentUser.uid,
+        status: 'declined',
+        type: incomingCall.video ? 'video' : 'audio',
+        durationSeconds: 0,
+        timestamp: serverTimestamp(),
+      }, { merge: true });
+
+      // Callee writes the declined message log since they initiated the decline
+      const threadId = [currentUser.uid, incomingCall.fromUserId].sort().join('_');
+      await addDoc(collection(db, 'messages'), {
+        threadId,
+        participants: [currentUser.uid, incomingCall.fromUserId],
+        type: 'call_log',
+        status: 'declined',
+        callType: incomingCall.video ? 'video' : 'audio',
+        durationSeconds: 0,
+        senderId: incomingCall.fromUserId, // Consider the caller as the sender for missed/declined calls UI
+        timestamp: serverTimestamp(),
+      });
       
       // Auto-decline any other duplicate ghost calls from the same person
       incomingCalls.forEach(c => {

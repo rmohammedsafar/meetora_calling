@@ -1,0 +1,138 @@
+.recent-calls-page {
+  padding: 32px;
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.calls-header {
+  margin-bottom: 32px;
+}
+
+.calls-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  margin: 0 0 8px 0;
+}
+
+.calls-header p {
+  color: var(--text-secondary, #94a3b8);
+  margin: 0;
+}
+
+.calls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.call-log-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  background-color: var(--bg-surface, #1e293b);
+  border-radius: 12px;
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.05));
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.call-log-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.call-info-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.call-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-icon-wrapper.missed {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.call-icon-wrapper.completed {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.call-icon-wrapper.declined {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.call-details h3 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  color: var(--text-primary, #ffffff);
+}
+
+.call-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.call-meta span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.call-time-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.call-date {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary, #ffffff);
+}
+
+.call-duration {
+  font-size: 12px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.call-back-btn {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.call-back-btn:hover {
+  background-color: rgba(59, 130, 246, 0.1);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 64px;
+  color: var(--text-secondary, #94a3b8);
+  background-color: var(--bg-surface, #1e293b);
+  border-radius: 12px;
+}
