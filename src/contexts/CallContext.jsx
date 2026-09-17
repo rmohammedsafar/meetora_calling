@@ -23,6 +23,7 @@ export const CallProvider = ({ children }) => {
   }, [activeCall]);
   const [incomingCalls, setIncomingCalls] = useState([]);
   const [isVactConnected, setIsVactConnected] = useState(false);
+  const handledCallIds = useRef(new Set());
 
   useEffect(() => {
     let isCancelled = false;
@@ -50,14 +51,33 @@ export const CallProvider = ({ children }) => {
 
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
-          if (activeCallRef.current && calls.length > 0) {
-            // User is on another call; auto-decline new incoming calls
-            calls.forEach(incoming => {
+          // Filter out calls we've already handled (accepted/declined)
+          let newCalls = calls.filter(c => !handledCallIds.current.has(c.id));
+          
+          // Deduplicate calls from the SAME user (take only the first one, auto-decline the rest)
+          const seenUsers = new Set();
+          const uniqueCalls = [];
+          
+          newCalls.forEach(incoming => {
+            if (seenUsers.has(incoming.fromUserId)) {
+              // This is a duplicate ghost call from the same person! Decline it instantly.
               incoming.decline().catch(console.error);
+              handledCallIds.current.add(incoming.id);
+            } else {
+              seenUsers.add(incoming.fromUserId);
+              uniqueCalls.push(incoming);
+            }
+          });
+
+          if (activeCallRef.current && uniqueCalls.length > 0) {
+            // User is on another call; auto-decline new incoming calls
+            uniqueCalls.forEach(incoming => {
+              incoming.decline().catch(console.error);
+              handledCallIds.current.add(incoming.id);
             });
           } else {
-            setIncomingCalls([...calls]);
-            if (calls.length > 0) {
+            setIncomingCalls([...uniqueCalls]);
+            if (uniqueCalls.length > 0) {
               playIncomingRingtone();
             } else {
               stopRingtone();
@@ -215,8 +235,10 @@ export const CallProvider = ({ children }) => {
       incomingCalls.forEach(c => {
         if (c.id !== incomingCall.id) {
           c.decline().catch(e => console.warn('Ghost decline failed', e));
+          handledCallIds.current.add(c.id);
         }
       });
+      handledCallIds.current.add(incomingCall.id);
 
       handleCallDisconnect(call);
       setActiveCall(call);
@@ -261,8 +283,12 @@ export const CallProvider = ({ children }) => {
       incomingCalls.forEach(c => {
         if (c.id !== incomingCall.id && c.fromUserId === incomingCall.fromUserId) {
           c.decline().catch(e => console.warn('Ghost decline failed', e));
+          handledCallIds.current.add(c.id);
         }
       });
+      handledCallIds.current.add(incomingCall.id);
+      
+      setIncomingCalls(prev => prev.filter(c => c.id !== incomingCall.id));
     } catch (error) {
       console.error('Failed to decline call:', error);
     }
