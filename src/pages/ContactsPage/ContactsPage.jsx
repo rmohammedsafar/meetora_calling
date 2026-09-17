@@ -102,7 +102,7 @@ const ContactsPage = () => {
               <div className="contact-actions">
                 <button
                   className="action-btn call-btn"
-                  onClick={() => handleCall(user.uid)}
+                  onClick={() => handleCall(user.id)}
                   title="Video Call"
                 >
                   <Video size={18} />
