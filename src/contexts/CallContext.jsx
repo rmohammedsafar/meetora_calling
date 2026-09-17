@@ -22,10 +22,13 @@ export const CallProvider = ({ children }) => {
   const [isVactConnected, setIsVactConnected] = useState(false);
 
   useEffect(() => {
+    let isCancelled = false;
+    let client = null;
+
     // Only connect if we have a logged-in user
     if (!currentUser) {
       if (vact) {
-        // Disconnect logic could go here if supported by SDK, or just nullify
+        if (typeof vact.disconnect === 'function') vact.disconnect();
         setIsVactConnected(false);
       }
       return;
@@ -40,7 +43,7 @@ export const CallProvider = ({ children }) => {
           return;
         }
 
-        const client = new VactClient(appId);
+        client = new VactClient(appId);
 
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
@@ -79,9 +82,13 @@ export const CallProvider = ({ children }) => {
           throw new Error('connect() failed! AppID: ' + appId + ' | Token: ' + accessToken + ' | Reason: ' + connErr.message);
         }
 
-        setVact(client);
-        setIsVactConnected(true);
-        console.log('Successfully connected to VACT as', currentUser.uid);
+        if (!isCancelled) {
+          setVact(client);
+          setIsVactConnected(true);
+          console.log('Successfully connected to VACT as', currentUser.uid);
+        } else {
+          client.disconnect();
+        }
 
       } catch (error) {
         console.error('Failed to initialize VACT client:', error);
@@ -90,6 +97,13 @@ export const CallProvider = ({ children }) => {
     };
 
     initVact();
+
+    return () => {
+      isCancelled = true;
+      if (client && typeof client.disconnect === 'function') {
+        client.disconnect();
+      }
+    };
   }, [currentUser]);
 
   const [callState, setCallState] = useState('idle');
