@@ -107,6 +107,22 @@ export const CallProvider = ({ children }) => {
     }
   };
 
+  // Clean up calls if the user closes the browser tab or reloads mid-call
+  useEffect(() => {
+    const handleUnload = () => {
+      if (activeCallRef.current) {
+        const call = activeCallRef.current;
+        if (call.state === 'ringing' || call.state === 'connecting') {
+          if (typeof call.cancel === 'function') call.cancel();
+        } else {
+          if (typeof call.end === 'function') call.end();
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+    return () => window.removeEventListener('beforeunload', handleUnload);
+  }, []);
+
   // Helper to place a call
   const placeCall = async (targetUserId, options = { video: true }) => {
     if (!vact) throw new Error('VACT client not initialized');
