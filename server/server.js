@@ -10,11 +10,8 @@ const port = process.env.PORT || 3001;
 app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
 app.use(express.json());
 
-// Initialize VACT Server SDK
-const vact = new VactServer({
-  appId: process.env.VACT_APP_ID,
-  appSecret: process.env.VACT_APP_SECRET,
-});
+const appId = process.env.VACT_APP_ID || 'vact_app_12c938ca7ac6f7708669a1f9';
+const appSecret = process.env.VACT_APP_SECRET || 'vact_live_e77aaf189a50456c_g3yXZOG7IotQXtA3H6AI4erAoZBOVSCBb4D5r0W8K-A';
 
 app.post('/api/vact-token', async (req, res) => {
   try {
@@ -24,11 +21,25 @@ app.post('/api/vact-token', async (req, res) => {
       return res.status(400).json({ error: 'userId is required' });
     }
 
-    const token = await vact.createAccessToken({
-      userId: userId
-    });
+    const r = await fetch(
+      `https://vact.online/v1/apps/${appId}/tokens`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${appSecret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId: userId }),
+      },
+    );
+    
+    if (!r.ok) {
+      console.error('VACT API Error:', await r.text());
+      return res.status(500).json({ error: 'Failed to mint token from VACT API' });
+    }
 
-    res.json({ accessToken: token });
+    const data = await r.json();
+    res.json({ accessToken: data.token || data.accessToken });
   } catch (error) {
     console.error('Error minting VACT token:', error);
     res.status(500).json({ error: 'Failed to mint token' });

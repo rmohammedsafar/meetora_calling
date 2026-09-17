@@ -12,6 +12,12 @@ export const CallProvider = ({ children }) => {
   const { currentUser } = useAuth();
   const [vact, setVact] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
+  const activeCallRef = React.useRef(null);
+
+  // Keep ref in sync with state for use inside closures
+  useEffect(() => {
+    activeCallRef.current = activeCall;
+  }, [activeCall]);
   const [incomingCalls, setIncomingCalls] = useState([]);
   const [isVactConnected, setIsVactConnected] = useState(false);
 
@@ -27,8 +33,8 @@ export const CallProvider = ({ children }) => {
 
     const initVact = async () => {
       try {
-        // App ID must be exposed to the frontend via VITE_
-        const appId = import.meta.env.VITE_VACT_APP_ID;
+        // Hardcoded for testing to bypass Vite caching issues
+        const appId = 'vact_app_12c938ca7ac6f7708669a1f9';
         if (!appId) {
           console.warn('VITE_VACT_APP_ID is missing from .env');
           return;
@@ -38,7 +44,14 @@ export const CallProvider = ({ children }) => {
 
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
-          setIncomingCalls([...calls]);
+          if (activeCallRef.current && calls.length > 0) {
+            // User is on another call; auto-decline new incoming calls
+            calls.forEach(incoming => {
+               incoming.decline().catch(console.error);
+            });
+          } else {
+            setIncomingCalls([...calls]);
+          }
         });
 
         // Get an access token from our custom backend
@@ -52,19 +65,27 @@ export const CallProvider = ({ children }) => {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to fetch VACT access token');
+          throw new Error('Backend failed to generate token (Status ' + response.status + ')');
         }
 
-        const { accessToken } = await response.json();
+        const data = await response.json();
+        const accessToken = data.accessToken;
         
-        await client.connect(accessToken);
+        console.log("Attempting to connect to VACT with App ID:", appId, "and token:", accessToken);
+        
+        try {
+          await client.connect(accessToken);
+        } catch (connErr) {
+          throw new Error('connect() failed! AppID: ' + appId + ' | Token: ' + accessToken + ' | Reason: ' + connErr.message);
+        }
         
         setVact(client);
         setIsVactConnected(true);
         console.log('Successfully connected to VACT as', currentUser.uid);
 
       } catch (error) {
-        console.error('Error connecting to VACT:', error);
+        console.error('Failed to initialize VACT client:', error);
+        alert('VACT Init Error: ' + error.message);
       }
     };
 
