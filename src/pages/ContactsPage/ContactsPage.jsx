@@ -19,7 +19,7 @@ const ContactsPage = () => {
       try {
         const usersRef = collection(db, 'users');
         const querySnapshot = await getDocs(usersRef);
-        
+
         const usersList = [];
         querySnapshot.forEach((doc) => {
           // Don't include the current user in their own contacts list
@@ -27,7 +27,7 @@ const ContactsPage = () => {
             usersList.push({ id: doc.id, ...doc.data() });
           }
         });
-        
+
         setUsers(usersList);
       } catch (error) {
         console.error("Error fetching users:", error);
@@ -44,6 +44,7 @@ const ContactsPage = () => {
       await placeCall(uid, { video: true });
     } catch (e) {
       console.error("Failed to place call:", e);
+      alert("Failed to call: " + e.message);
     }
   };
 
@@ -88,8 +89,8 @@ const ContactsPage = () => {
                 </div>
               </div>
               <div className="contact-actions">
-                <button 
-                  className="action-btn call-btn" 
+                <button
+                  className="action-btn call-btn"
                   onClick={() => handleCall(user.uid)}
                   title="Video Call"
                 >
