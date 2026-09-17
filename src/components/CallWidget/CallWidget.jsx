@@ -14,14 +14,19 @@ const CallWidget = () => {
 
   // Attach video streams when the call is active
   useEffect(() => {
-    if (activeCall) {
-      if (localVideoRef.current && activeCall.localStream) {
+    if (!activeCall) return;
+
+    // Constantly check for the stream to ensure it attaches when the camera is ready
+    const interval = setInterval(() => {
+      if (localVideoRef.current && activeCall.localStream && localVideoRef.current.srcObject !== activeCall.localStream) {
         localVideoRef.current.srcObject = activeCall.localStream;
       }
-      if (remoteVideoRef.current && activeCall.remoteStream) {
+      if (remoteVideoRef.current && activeCall.remoteStream && remoteVideoRef.current.srcObject !== activeCall.remoteStream) {
         remoteVideoRef.current.srcObject = activeCall.remoteStream;
       }
-    }
+    }, 500);
+
+    return () => clearInterval(interval);
   }, [activeCall]);
 
   const toggleMute = () => {
