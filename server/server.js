@@ -29,7 +29,17 @@ app.post('/api/vact-token', async (req, res) => {
           Authorization: `Bearer ${appSecret}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ userId: userId }),
+        body: JSON.stringify({ 
+          userId: userId,
+          permissions: [
+            'call:create',
+            'call:receive',
+            'call:accept',
+            'call:end',
+            'telemetry:write'
+          ],
+          sessionTtlSeconds: 3600
+        }),
       },
     );
     
