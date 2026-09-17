@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { VactClient } from '@firstlogicmetalab/client';
 import { useAuth } from './AuthContext';
+import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
 
 const CallContext = createContext();
 
@@ -54,6 +55,11 @@ export const CallProvider = ({ children }) => {
             });
           } else {
             setIncomingCalls([...calls]);
+            if (calls.length > 0) {
+              playIncomingRingtone();
+            } else {
+              stopRingtone();
+            }
           }
         });
 
@@ -113,6 +119,9 @@ export const CallProvider = ({ children }) => {
       setCallState(call.state);
       call.onState = (state) => {
         setCallState(state);
+        if (state === 'connected' || state === 'ended' || state === 'failed') {
+          stopRingtone();
+        }
         if (state === 'ended' || state === 'failed') {
           setActiveCall(null);
           setCallState('idle');
@@ -127,6 +136,7 @@ export const CallProvider = ({ children }) => {
 
     try {
       const call = await vact.call(targetUserId, options);
+      playOutgoingRingtone();
       handleCallDisconnect(call);
       setActiveCall(call);
       return call;
@@ -138,6 +148,7 @@ export const CallProvider = ({ children }) => {
 
   // Helper to accept a call
   const acceptCall = async (incomingCall) => {
+    stopRingtone();
     try {
       const call = await incomingCall.accept({ video: true, audio: true });
       handleCallDisconnect(call);
@@ -151,6 +162,7 @@ export const CallProvider = ({ children }) => {
 
   // Helper to decline a call
   const declineCall = async (incomingCall) => {
+    stopRingtone();
     try {
       await incomingCall.decline();
     } catch (error) {
@@ -160,6 +172,7 @@ export const CallProvider = ({ children }) => {
 
   // Helper to end active call
   const endCall = () => {
+    stopRingtone();
     if (activeCall) {
       // The VACT SDK requires cancel() if giving up before the call connects, and end() otherwise.
       if (activeCall.state === 'ringing' || activeCall.state === 'connecting') {
