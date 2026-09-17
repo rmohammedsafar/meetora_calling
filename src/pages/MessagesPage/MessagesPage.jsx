@@ -50,13 +50,20 @@ const MessagesPage = () => {
     const threadId = [currentUser.uid, activeContact.id].sort().join('_');
     const q = query(
       collection(db, 'messages'),
-      where('threadId', '==', threadId),
-      orderBy('timestamp', 'asc')
+      where('threadId', '==', threadId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const msgs = [];
       snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
+      
+      // Sort locally to avoid Firestore composite index requirement
+      msgs.sort((a, b) => {
+        const tA = a.timestamp?.toMillis() || 0;
+        const tB = b.timestamp?.toMillis() || 0;
+        return tA - tB;
+      });
+      
       setMessages(msgs);
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     });
