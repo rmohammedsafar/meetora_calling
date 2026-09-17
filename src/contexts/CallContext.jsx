@@ -56,7 +56,7 @@ export const CallProvider = ({ children }) => {
 
         // Get an access token from our custom backend
         // In a real app, you would pass an auth token (like Firebase ID token) to secure this endpoint
-        const response = await fetch('http://localhost:3001/api/vact-token', {
+        const response = await fetch('https://meetora-calling.onrender.com/api/vact-token', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -6,8 +6,8 @@ const { VactServer } = require('@firstlogicmetalab/server-sdk');
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Allow CORS from our local React dev server
-app.use(cors({ origin: 'http://localhost:5173', credentials: true }));
+// Allow CORS from any origin for testing
+app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json());
 
 const appId = process.env.VACT_APP_ID || 'vact_app_12c938ca7ac6f7708669a1f9';
