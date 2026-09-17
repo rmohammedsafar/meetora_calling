@@ -49,6 +49,8 @@ export const CallProvider = ({ children }) => {
         }
 
         client = new VactClient(appId);
+        let isVactReady = false;
+        let initialIncomingCalls = [];
 
         // Keep track of calls that were already ringing in this browser. If
         // the page reloads, VACT can return those same calls again because
@@ -68,6 +70,13 @@ export const CallProvider = ({ children }) => {
 
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
+          // Do not show calls that were already ringing before this tab
+          // finished reconnecting. They are recorded as missed below.
+          if (!isVactReady) {
+            initialIncomingCalls = calls;
+            return;
+          }
+
           const storedRingingIds = getStoredRingingIds();
           const staleCalls = calls.filter(c => storedRingingIds.has(c.id));
           staleCalls.forEach((incoming) => {
@@ -140,6 +149,48 @@ export const CallProvider = ({ children }) => {
         } catch (connErr) {
           throw new Error('connect() failed! AppID: ' + appId + ' | Token: ' + accessToken + ' | Reason: ' + connErr.message);
         }
+
+        // VACT may return calls that were ringing before this tab opened or
+        // reloaded. Clear them from the server and keep them in call history
+        // as missed instead of showing a ghost incoming-call popup.
+        const staleIncomingCalls = initialIncomingCalls;
+        isVactReady = true;
+        initialIncomingCalls = [];
+        staleIncomingCalls.forEach((incoming) => {
+          handledCallIds.current.add(incoming.id);
+          const type = incoming.video ? 'video' : 'audio';
+          const threadId = [currentUser.uid, incoming.fromUserId].sort().join('_');
+
+          incoming.decline().catch((error) => {
+            console.warn('Failed to clear stale ringing call:', error);
+          });
+
+          setDoc(doc(db, 'call_logs', incoming.id), {
+            callerId: incoming.fromUserId,
+            calleeId: currentUser.uid,
+            status: 'missed',
+            type,
+            durationSeconds: 0,
+            timestamp: serverTimestamp(),
+          }, { merge: true }).catch((error) => {
+            console.warn('Failed to record stale call as missed:', error);
+          });
+
+          addDoc(collection(db, 'messages'), {
+            threadId,
+            participants: [currentUser.uid, incoming.fromUserId],
+            type: 'call_log',
+            status: 'missed',
+            callType: type,
+            durationSeconds: 0,
+            senderId: incoming.fromUserId,
+            timestamp: serverTimestamp(),
+          }).catch((error) => {
+            console.warn('Failed to record missed call in messages:', error);
+          });
+        });
+        setIncomingCalls([]);
+        stopRingtone();
 
         if (!isCancelled) {
           setVact(client);
