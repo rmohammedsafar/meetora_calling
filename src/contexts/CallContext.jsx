@@ -92,11 +92,16 @@ export const CallProvider = ({ children }) => {
     initVact();
   }, [currentUser]);
 
+  const [callState, setCallState] = useState('idle');
+
   const handleCallDisconnect = (call) => {
     if (call) {
+      setCallState(call.state);
       call.onState = (state) => {
+        setCallState(state);
         if (state === 'ended' || state === 'failed') {
           setActiveCall(null);
+          setCallState('idle');
         }
       };
     }
@@ -155,6 +160,7 @@ export const CallProvider = ({ children }) => {
         }
       }
       setActiveCall(null);
+      setCallState('idle');
     }
   };
 
@@ -162,6 +168,7 @@ export const CallProvider = ({ children }) => {
     vact,
     isVactConnected,
     activeCall,
+    callState,
     setActiveCall,
     incomingCalls,
     placeCall,

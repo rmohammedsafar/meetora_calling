@@ -7,7 +7,7 @@ import { db } from '../../firebase';
 import './CallWidget.css';
 
 const CallWidget = () => {
-  const { activeCall, incomingCalls, acceptCall, declineCall, endCall } = useCall();
+  const { activeCall, callState, incomingCalls, acceptCall, declineCall, endCall } = useCall();
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callerName, setCallerName] = useState('Someone');
@@ -23,9 +23,11 @@ const CallWidget = () => {
     const interval = setInterval(() => {
       if (localVideoRef.current && activeCall.localStream && localVideoRef.current.srcObject !== activeCall.localStream) {
         localVideoRef.current.srcObject = activeCall.localStream;
+        localVideoRef.current.play().catch(e => console.warn('Local play prevented:', e));
       }
       if (remoteVideoRef.current && activeCall.remoteStream && remoteVideoRef.current.srcObject !== activeCall.remoteStream) {
         remoteVideoRef.current.srcObject = activeCall.remoteStream;
+        remoteVideoRef.current.play().catch(e => console.warn('Remote play prevented:', e));
       }
     }, 500);
 
@@ -108,8 +110,8 @@ const CallWidget = () => {
                 playsInline 
                 className="remote-video"
               />
-              {!activeCall.remoteStream && (
-                <div className="video-placeholder">Connecting...</div>
+              {callState !== 'connected' && (
+                <div className="video-placeholder">State: {callState}...</div>
               )}
               
               {/* Local Video (Picture-in-Picture) */}
