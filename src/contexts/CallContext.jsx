@@ -142,11 +142,17 @@ export const CallProvider = ({ children }) => {
   // Helper to end active call
   const endCall = () => {
     if (activeCall) {
-      // If the SDK provides an end() method, use it:
-      if (typeof activeCall.end === 'function') {
-        activeCall.end();
-      } else if (typeof activeCall.close === 'function') {
-        activeCall.close();
+      // The VACT SDK requires cancel() if giving up before the call connects, and end() otherwise.
+      if (activeCall.state === 'ringing' || activeCall.state === 'connecting') {
+        if (typeof activeCall.cancel === 'function') {
+          activeCall.cancel();
+        } else if (typeof activeCall.end === 'function') {
+          activeCall.end();
+        }
+      } else {
+        if (typeof activeCall.end === 'function') {
+          activeCall.end();
+        }
       }
       setActiveCall(null);
     }
