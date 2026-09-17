@@ -24,6 +24,7 @@ export const CallProvider = ({ children }) => {
   const [incomingCalls, setIncomingCalls] = useState([]);
   const [isVactConnected, setIsVactConnected] = useState(false);
   const handledCallIds = useRef(new Set());
+  const isTransitioningRef = useRef(false);
 
   useEffect(() => {
     let isCancelled = false;
@@ -49,8 +50,27 @@ export const CallProvider = ({ children }) => {
 
         client = new VactClient(appId);
 
+        // VACT immediately sends the calls that were already ringing when a
+        // session reconnects. After a browser reload those are stale calls
+        // from the previous page session, not new incoming calls. Clear that
+        // initial snapshot so ghost calls do not reappear after reload.
+        let isInitialIncomingSnapshot = true;
+
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
+          if (isInitialIncomingSnapshot) {
+            isInitialIncomingSnapshot = false;
+            calls.forEach((incoming) => {
+              handledCallIds.current.add(incoming.id);
+              incoming.decline().catch((error) => {
+                console.warn('Failed to clear stale ringing call:', error);
+              });
+            });
+            setIncomingCalls([]);
+            stopRingtone();
+            return;
+          }
+
           // Filter out calls we've already handled (accepted/declined)
           let newCalls = calls.filter(c => !handledCallIds.current.has(c.id));
           
@@ -212,7 +232,11 @@ export const CallProvider = ({ children }) => {
   // Helper to place a call
   const placeCall = async (targetUserId, options = { video: true }) => {
     if (!vact) throw new Error('VACT client not initialized');
+    if (activeCallRef.current || isTransitioningRef.current) {
+      throw new Error('Already on a call or transitioning');
+    }
 
+    isTransitioningRef.current = true;
     try {
       const call = await vact.call(targetUserId, options);
       playOutgoingRingtone();
@@ -222,11 +246,15 @@ export const CallProvider = ({ children }) => {
     } catch (error) {
       console.error('Call failed:', error);
       throw error;
+    } finally {
+      isTransitioningRef.current = false;
     }
   };
 
   // Helper to accept a call
   const acceptCall = async (incomingCall) => {
+    if (isTransitioningRef.current) return;
+    isTransitioningRef.current = true;
     stopRingtone();
     try {
       const call = await incomingCall.accept({ video: incomingCall.video, audio: true });
@@ -246,6 +274,8 @@ export const CallProvider = ({ children }) => {
     } catch (error) {
       console.error('Failed to accept call:', error);
       throw error;
+    } finally {
+      isTransitioningRef.current = false;
     }
   };
 
