@@ -118,21 +118,24 @@ const CallWidget = () => {
         {activeCall && (
           <div className="active-call-view">
             <div className="video-container">
+              {/* Always mount remote video to ensure audio plays! */}
+              <video 
+                ref={remoteVideoRef} 
+                autoPlay 
+                playsInline 
+                className="remote-video"
+                style={{ display: isAudioOnly ? 'none' : 'block' }}
+              />
+
               {/* Remote Video or Audio Avatar */}
               {isAudioOnly ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'white' }}>
-                  <Avatar name="Call" size="large" />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'white', position: 'absolute', inset: 0 }}>
+                  <Avatar name={callerName} size="large" />
                   <h3 style={{ marginTop: '16px' }}>Voice Call</h3>
                   <p>{callState}</p>
                 </div>
               ) : (
                 <>
-                  <video 
-                    ref={remoteVideoRef} 
-                    autoPlay 
-                    playsInline 
-                    className="remote-video"
-                  />
                   {callState !== 'connected' && (
                     <div className="video-placeholder">State: {callState}...</div>
                   )}
