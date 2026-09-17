@@ -11,6 +11,10 @@ const CallWidget = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callerName, setCallerName] = useState('Someone');
+  
+  const hasLocalVideo = activeCall?.localStream?.getVideoTracks().length > 0;
+  const hasRemoteVideo = activeCall?.remoteStream?.getVideoTracks().length > 0;
+  const isAudioOnly = activeCall && !hasLocalVideo && !hasRemoteVideo;
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -77,10 +81,10 @@ const CallWidget = () => {
         {/* Incoming Call View */}
         {!activeCall && incomingCalls.length > 0 && (
           <div className="incoming-call-view">
-            <div className="incoming-header">
+            <div className="caller-info">
               <Avatar name={callerName} size="large" />
-              <h3>{callerName}</h3>
-              <p>Incoming video call...</p>
+              <h3>Incoming {incomingCalls[0].video ? 'Video' : 'Voice'} Call</h3>
+              <p>{callerName}</p>
             </div>
             <div className="incoming-actions">
               <button 
@@ -103,27 +107,39 @@ const CallWidget = () => {
         {activeCall && (
           <div className="active-call-view">
             <div className="video-container">
-              {/* Remote Video (Large) */}
-              <video 
-                ref={remoteVideoRef} 
-                autoPlay 
-                playsInline 
-                className="remote-video"
-              />
-              {callState !== 'connected' && (
-                <div className="video-placeholder">State: {callState}...</div>
+              {/* Remote Video or Audio Avatar */}
+              {isAudioOnly ? (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'white' }}>
+                  <Avatar name="Call" size="large" />
+                  <h3 style={{ marginTop: '16px' }}>Voice Call</h3>
+                  <p>{callState}</p>
+                </div>
+              ) : (
+                <>
+                  <video 
+                    ref={remoteVideoRef} 
+                    autoPlay 
+                    playsInline 
+                    className="remote-video"
+                  />
+                  {callState !== 'connected' && (
+                    <div className="video-placeholder">State: {callState}...</div>
+                  )}
+                  
+                  {/* Local Video (Picture-in-Picture) */}
+                  {hasLocalVideo && (
+                    <div className="local-video-container">
+                      <video 
+                        ref={localVideoRef} 
+                        autoPlay 
+                        playsInline 
+                        muted 
+                        className="local-video"
+                      />
+                    </div>
+                  )}
+                </>
               )}
-              
-              {/* Local Video (Picture-in-Picture) */}
-              <div className="local-video-container">
-                <video 
-                  ref={localVideoRef} 
-                  autoPlay 
-                  playsInline 
-                  muted 
-                  className="local-video"
-                />
-              </div>
             </div>
 
             {/* Call Controls */}
@@ -136,13 +152,15 @@ const CallWidget = () => {
                 {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
               </button>
               
-              <button 
-                className={`control-btn ${isVideoOff ? 'active-mute' : ''}`} 
-                onClick={toggleVideo}
-                title="Toggle Video"
-              >
-                <Video size={20} />
-              </button>
+              {!isAudioOnly && (
+                <button 
+                  className={`control-btn ${isVideoOff ? 'active-mute' : ''}`} 
+                  onClick={toggleVideo}
+                  title="Toggle Video"
+                >
+                  <Video size={20} />
+                </button>
+              )}
               
               <button 
                 className="control-btn btn-danger" 

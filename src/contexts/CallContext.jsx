@@ -150,7 +150,7 @@ export const CallProvider = ({ children }) => {
   const acceptCall = async (incomingCall) => {
     stopRingtone();
     try {
-      const call = await incomingCall.accept({ video: true, audio: true });
+      const call = await incomingCall.accept({ video: incomingCall.video, audio: true });
       
       // Auto-decline any other ghost calls to prevent them popping up later
       incomingCalls.forEach(c => {

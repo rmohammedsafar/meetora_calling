@@ -11,6 +11,8 @@ const ContactsPage = () => {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [callingId, setCallingId] = useState(null);
+  const [callingType, setCallingType] = useState(null);
   const { currentUser } = useAuth();
   const { placeCall, callState } = useCall();
 
@@ -50,16 +52,21 @@ const ContactsPage = () => {
     fetchUsers();
   }, [currentUser]);
 
-  const handleCall = async (uid) => {
+  const handleCall = async (uid, isVideo) => {
     if (callState !== 'idle') {
       console.warn('Cannot place call, another call is active or connecting');
       return;
     }
+    setCallingId(uid);
+    setCallingType(isVideo ? 'video' : 'audio');
     try {
-      await placeCall(uid, { video: true });
+      await placeCall(uid, { video: isVideo });
     } catch (e) {
       console.error("Failed to place call:", e);
       alert("Failed to call: " + e.message);
+    } finally {
+      setCallingId(null);
+      setCallingType(null);
     }
   };
 
@@ -103,14 +110,25 @@ const ContactsPage = () => {
                   <span className="contact-email">{user.email}</span>
                 </div>
               </div>
-              <div className="contact-actions">
+              <div className="contact-actions" style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  className="action-btn call-btn"
-                  onClick={() => handleCall(user.id)}
+                  className={`action-btn call-btn audio-btn ${callingId === user.id && callingType === 'audio' ? 'calling' : ''}`}
+                  onClick={() => handleCall(user.id, false)}
+                  title="Voice Call"
+                  disabled={callingId !== null || callState !== 'idle'}
+                  style={{ backgroundColor: '#3b82f6' }}
+                >
+                  <Phone size={18} />
+                  <span>{callingId === user.id && callingType === 'audio' ? 'Connecting...' : 'Voice'}</span>
+                </button>
+                <button
+                  className={`action-btn call-btn video-btn ${callingId === user.id && callingType === 'video' ? 'calling' : ''}`}
+                  onClick={() => handleCall(user.id, true)}
                   title="Video Call"
+                  disabled={callingId !== null || callState !== 'idle'}
                 >
                   <Video size={18} />
-                  <span>Call</span>
+                  <span>{callingId === user.id && callingType === 'video' ? 'Connecting...' : 'Video'}</span>
                 </button>
               </div>
             </div>
