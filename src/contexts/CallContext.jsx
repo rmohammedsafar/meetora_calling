@@ -92,12 +92,21 @@ export const CallProvider = ({ children }) => {
     initVact();
   }, [currentUser]);
 
+  const handleCallDisconnect = (call) => {
+    if (call && typeof call.on === 'function') {
+      call.on('ended', () => setActiveCall(null));
+      call.on('disconnected', () => setActiveCall(null));
+      call.on('close', () => setActiveCall(null));
+    }
+  };
+
   // Helper to place a call
   const placeCall = async (targetUserId, options = { video: true }) => {
     if (!vact) throw new Error('VACT client not initialized');
     
     try {
       const call = await vact.call(targetUserId, options);
+      handleCallDisconnect(call);
       setActiveCall(call);
       return call;
     } catch (error) {
@@ -110,6 +119,7 @@ export const CallProvider = ({ children }) => {
   const acceptCall = async (incomingCall) => {
     try {
       const call = await incomingCall.accept({ video: true, audio: true });
+      handleCallDisconnect(call);
       setActiveCall(call);
       return call;
     } catch (error) {

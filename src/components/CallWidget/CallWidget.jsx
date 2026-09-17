@@ -2,12 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Video, Mic, MicOff, PhoneOff, Phone } from 'lucide-react';
 import { useCall } from '../../contexts/CallContext';
 import Avatar from '../Avatar/Avatar';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../firebase';
 import './CallWidget.css';
 
 const CallWidget = () => {
   const { activeCall, incomingCalls, acceptCall, declineCall, endCall } = useCall();
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [callerName, setCallerName] = useState('Someone');
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -28,6 +31,24 @@ const CallWidget = () => {
 
     return () => clearInterval(interval);
   }, [activeCall]);
+
+  useEffect(() => {
+    if (incomingCalls.length > 0) {
+      const incoming = incomingCalls[0];
+      const uid = incoming.callerId || incoming.caller; // Fallback properties
+      if (uid) {
+        getDoc(doc(db, 'users', uid)).then(docSnap => {
+          if (docSnap.exists()) {
+            setCallerName(docSnap.data().displayName || uid);
+          } else {
+            setCallerName(incoming.callerName || uid);
+          }
+        }).catch(() => setCallerName(incoming.callerName || uid));
+      } else {
+        setCallerName(incoming.callerName || 'Someone');
+      }
+    }
+  }, [incomingCalls]);
 
   const toggleMute = () => {
     if (activeCall) {
@@ -57,8 +78,8 @@ const CallWidget = () => {
         {!activeCall && incomingCalls.length > 0 && (
           <div className="incoming-call-view">
             <div className="incoming-header">
-              <Avatar name={incomingCalls[0].callerName || 'Someone'} size="large" />
-              <h3>{incomingCalls[0].callerName || 'Someone'}</h3>
+              <Avatar name={callerName} size="large" />
+              <h3>{callerName}</h3>
               <p>Incoming video call...</p>
             </div>
             <div className="incoming-actions">
