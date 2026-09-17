@@ -479,3 +479,58 @@
 .input-send-btn:hover {
   background-color: var(--primary-hover);
 }
+
+/* Mobile Responsiveness */
+.mobile-back-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-dark);
+  cursor: pointer;
+  padding: 8px;
+  margin-right: 8px;
+}
+
+@media (max-width: 768px) {
+  .messages-page {
+    position: relative;
+    border-radius: 0;
+    margin-top: 0;
+    height: 100%;
+    border: none;
+  }
+
+  .threads-sidebar {
+    width: 100%;
+    border-right: none;
+  }
+
+  .chat-area {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+  }
+
+  .messages-page.mobile-chat-active .chat-area {
+    transform: translateX(0);
+  }
+
+  .messages-page.mobile-chat-active .threads-sidebar {
+    display: none;
+  }
+
+  .mobile-back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .chat-target-info h2 {
+    font-size: 15px;
+  }
+}

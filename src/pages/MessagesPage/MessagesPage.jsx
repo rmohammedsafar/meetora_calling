@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Search, Edit, Phone, Video, MoreVertical, 
-  Smile, Paperclip, Send, FileText, MessageSquare, PhoneMissed, PhoneOutgoing, PhoneIncoming
+  Smile, Paperclip, Send, FileText, MessageSquare, PhoneMissed, PhoneOutgoing, PhoneIncoming, ArrowLeft
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -94,7 +94,7 @@ const MessagesPage = () => {
   };
 
   return (
-    <div className="messages-page">
+    <div className={`messages-page ${activeContact ? 'mobile-chat-active' : ''}`}>
       {/* Threads Sidebar */}
       <aside className="threads-sidebar">
         <div className="threads-header">
@@ -152,6 +152,9 @@ const MessagesPage = () => {
             {/* Chat Header */}
             <header className="chat-header">
               <div className="chat-target-info">
+                <button className="mobile-back-btn" onClick={() => setActiveContact(null)}>
+                  <ArrowLeft size={20} />
+                </button>
                 <Avatar src={activeContact.photoURL} name={activeContact.displayName} />
                 <div>
                   <h2>{activeContact.displayName}</h2>
