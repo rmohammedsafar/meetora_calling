@@ -47,7 +47,7 @@ export const CallProvider = ({ children }) => {
           if (activeCallRef.current && calls.length > 0) {
             // User is on another call; auto-decline new incoming calls
             calls.forEach(incoming => {
-               incoming.decline().catch(console.error);
+              incoming.decline().catch(console.error);
             });
           } else {
             setIncomingCalls([...calls]);
@@ -70,15 +70,15 @@ export const CallProvider = ({ children }) => {
 
         const data = await response.json();
         const accessToken = data.accessToken;
-        
+
         console.log("Attempting to connect to VACT with App ID:", appId, "and token:", accessToken);
-        
+
         try {
           await client.connect(accessToken);
         } catch (connErr) {
           throw new Error('connect() failed! AppID: ' + appId + ' | Token: ' + accessToken + ' | Reason: ' + connErr.message);
         }
-        
+
         setVact(client);
         setIsVactConnected(true);
         console.log('Successfully connected to VACT as', currentUser.uid);
@@ -107,26 +107,10 @@ export const CallProvider = ({ children }) => {
     }
   };
 
-  // Clean up calls if the user closes the browser tab or reloads mid-call
-  useEffect(() => {
-    const handleUnload = () => {
-      if (activeCallRef.current) {
-        const call = activeCallRef.current;
-        if (call.state === 'ringing' || call.state === 'connecting') {
-          if (typeof call.cancel === 'function') call.cancel();
-        } else {
-          if (typeof call.end === 'function') call.end();
-        }
-      }
-    };
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, []);
-
   // Helper to place a call
   const placeCall = async (targetUserId, options = { video: true }) => {
     if (!vact) throw new Error('VACT client not initialized');
-    
+
     try {
       const call = await vact.call(targetUserId, options);
       handleCallDisconnect(call);
@@ -159,7 +143,7 @@ export const CallProvider = ({ children }) => {
       console.error('Failed to decline call:', error);
     }
   };
-  
+
   // Helper to end active call
   const endCall = () => {
     if (activeCall) {
