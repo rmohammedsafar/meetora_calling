@@ -109,7 +109,7 @@ export const CallProvider = ({ children }) => {
   // Helper to accept a call
   const acceptCall = async (incomingCall) => {
     try {
-      const call = await incomingCall.accept();
+      const call = await incomingCall.accept({ video: true, audio: true });
       setActiveCall(call);
       return call;
     } catch (error) {
