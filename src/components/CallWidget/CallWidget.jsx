@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Video, Mic, MicOff, PhoneOff, Phone } from 'lucide-react';
+import { Video, Mic, MicOff, PhoneOff, Phone, Volume2, VolumeX } from 'lucide-react';
 import { useCall } from '../../contexts/CallContext';
 import Avatar from '../Avatar/Avatar';
 import { doc, getDoc } from 'firebase/firestore';
@@ -10,6 +10,7 @@ const CallWidget = () => {
   const { activeCall, callState, incomingCalls, acceptCall, declineCall, endCall } = useCall();
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
   const [callerName, setCallerName] = useState('Someone');
   
   const hasLocalVideo = activeCall?.localStream?.getVideoTracks().length > 0;
@@ -29,14 +30,17 @@ const CallWidget = () => {
         localVideoRef.current.srcObject = activeCall.localStream;
         localVideoRef.current.play().catch(e => console.warn('Local play prevented:', e));
       }
-      if (remoteVideoRef.current && activeCall.remoteStream && remoteVideoRef.current.srcObject !== activeCall.remoteStream) {
-        remoteVideoRef.current.srcObject = activeCall.remoteStream;
+      if (remoteVideoRef.current && activeCall.remoteStream) {
+        if (remoteVideoRef.current.srcObject !== activeCall.remoteStream) {
+          remoteVideoRef.current.srcObject = activeCall.remoteStream;
+        }
+        remoteVideoRef.current.muted = isSpeakerMuted;
         remoteVideoRef.current.play().catch(e => console.warn('Remote play prevented:', e));
       }
     }, 500);
 
     return () => clearInterval(interval);
-  }, [activeCall]);
+  }, [activeCall, isSpeakerMuted]);
 
   useEffect(() => {
     if (incomingCalls.length > 0) {
@@ -70,6 +74,13 @@ const CallWidget = () => {
     setIsVideoOff(!isVideoOff);
   };
 
+  const toggleSpeaker = () => {
+    if (remoteVideoRef.current) {
+      remoteVideoRef.current.muted = !isSpeakerMuted;
+    }
+    setIsSpeakerMuted(!isSpeakerMuted);
+  };
+
   // Do not render anything if there are no calls
   if (!activeCall && incomingCalls.length === 0) {
     return null;
@@ -81,7 +92,7 @@ const CallWidget = () => {
         {/* Incoming Call View */}
         {!activeCall && incomingCalls.length > 0 && (
           <div className="incoming-call-view">
-            <div className="caller-info">
+            <div className="incoming-header">
               <Avatar name={callerName} size="large" />
               <h3>Incoming {incomingCalls[0].video ? 'Video' : 'Voice'} Call</h3>
               <p>{callerName}</p>
@@ -144,6 +155,14 @@ const CallWidget = () => {
 
             {/* Call Controls */}
             <div className="call-controls-bar">
+              <button 
+                className={`control-btn ${isSpeakerMuted ? 'active-mute' : ''}`} 
+                onClick={toggleSpeaker}
+                title="Toggle Speaker"
+              >
+                {isSpeakerMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
+              </button>
+
               <button 
                 className={`control-btn ${isMuted ? 'active-mute' : ''}`} 
                 onClick={toggleMute}
