@@ -93,10 +93,12 @@ export const CallProvider = ({ children }) => {
   }, [currentUser]);
 
   const handleCallDisconnect = (call) => {
-    if (call && typeof call.on === 'function') {
-      call.on('ended', () => setActiveCall(null));
-      call.on('disconnected', () => setActiveCall(null));
-      call.on('close', () => setActiveCall(null));
+    if (call) {
+      call.onState = (state) => {
+        if (state === 'ended' || state === 'failed') {
+          setActiveCall(null);
+        }
+      };
     }
   };
 

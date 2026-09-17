@@ -15,6 +15,17 @@ const ContactsPage = () => {
   const { placeCall } = useCall();
 
   useEffect(() => {
+    // VACT docs: Request permissions BEFORE a call to prevent the popup from breaking WebRTC timing
+    const requestPermissions = async () => {
+      try {
+        const probe = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+        probe.getTracks().forEach((t) => t.stop());
+      } catch (err) {
+        console.warn('Camera permissions denied or ignored early probe', err);
+      }
+    };
+    requestPermissions();
+
     const fetchUsers = async () => {
       try {
         const usersRef = collection(db, 'users');

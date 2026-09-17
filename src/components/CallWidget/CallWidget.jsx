@@ -35,7 +35,7 @@ const CallWidget = () => {
   useEffect(() => {
     if (incomingCalls.length > 0) {
       const incoming = incomingCalls[0];
-      const uid = incoming.callerId || incoming.caller; // Fallback properties
+      const uid = incoming.fromUserId;
       if (uid) {
         getDoc(doc(db, 'users', uid)).then(docSnap => {
           if (docSnap.exists()) {
@@ -52,16 +52,14 @@ const CallWidget = () => {
 
   const toggleMute = () => {
     if (activeCall) {
-      if (isMuted) activeCall.unmuteAudio();
-      else activeCall.muteAudio();
+      activeCall.setMicrophoneEnabled(isMuted);
     }
     setIsMuted(!isMuted);
   };
 
   const toggleVideo = () => {
     if (activeCall) {
-      if (isVideoOff) activeCall.unmuteVideo();
-      else activeCall.muteVideo();
+      activeCall.setCameraEnabled(isVideoOff);
     }
     setIsVideoOff(!isVideoOff);
   };
