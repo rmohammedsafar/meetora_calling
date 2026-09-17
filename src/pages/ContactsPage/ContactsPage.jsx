@@ -12,7 +12,7 @@ const ContactsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const { currentUser } = useAuth();
-  const { placeCall } = useCall();
+  const { placeCall, callState } = useCall();
 
   useEffect(() => {
     // VACT docs: Request permissions BEFORE a call to prevent the popup from breaking WebRTC timing
@@ -51,6 +51,10 @@ const ContactsPage = () => {
   }, [currentUser]);
 
   const handleCall = async (uid) => {
+    if (callState !== 'idle') {
+      console.warn('Cannot place call, another call is active or connecting');
+      return;
+    }
     try {
       await placeCall(uid, { video: true });
     } catch (e) {

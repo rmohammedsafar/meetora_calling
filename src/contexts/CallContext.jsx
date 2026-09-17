@@ -151,6 +151,14 @@ export const CallProvider = ({ children }) => {
     stopRingtone();
     try {
       const call = await incomingCall.accept({ video: true, audio: true });
+      
+      // Auto-decline any other ghost calls to prevent them popping up later
+      incomingCalls.forEach(c => {
+        if (c.id !== incomingCall.id) {
+          c.decline().catch(e => console.warn('Ghost decline failed', e));
+        }
+      });
+
       handleCallDisconnect(call);
       setActiveCall(call);
       return call;
@@ -165,6 +173,13 @@ export const CallProvider = ({ children }) => {
     stopRingtone();
     try {
       await incomingCall.decline();
+      
+      // Auto-decline any other duplicate ghost calls from the same person
+      incomingCalls.forEach(c => {
+        if (c.id !== incomingCall.id && c.fromUserId === incomingCall.fromUserId) {
+          c.decline().catch(e => console.warn('Ghost decline failed', e));
+        }
+      });
     } catch (error) {
       console.error('Failed to decline call:', error);
     }
