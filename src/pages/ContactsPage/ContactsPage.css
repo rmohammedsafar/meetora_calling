@@ -161,8 +161,14 @@
 }
 
 @media (max-width: 480px) {
-  .contact-card { padding: 16px; }
-  .contact-info { width: 100%; gap: 12px; min-width: 0; }
+  .contacts-page { padding: 12px !important; }
+  .contact-card { padding: 12px; }
+  .contacts-list { gap: 10px; }
+  .search-input { padding: 10px 0; font-size: 14px; }
+  .search-bar-wrapper { padding: 0 12px; }
+  .contact-info { width: 100%; gap: 10px; min-width: 0; }
   .contact-details { min-width: 0; }
+  .contact-name { font-size: 15px; }
+  .contact-email { font-size: 12px; }
   .contact-name, .contact-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
