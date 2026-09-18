@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { VactClient } from '@firstlogicmetalab/client';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
-import { doc, setDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const CallContext = createContext();
@@ -102,6 +102,30 @@ export const CallProvider = ({ children }) => {
             uniqueCalls.forEach(incoming => {
               incoming.decline().catch(console.error);
               addHandledCallId(incoming.id);
+
+              // Tell the caller we are busy
+              const type = incoming.video ? 'video' : 'audio';
+              const threadId = [currentUser.uid, incoming.fromUserId].sort().join('_');
+              
+              setDoc(doc(db, 'call_logs', incoming.id), {
+                callerId: incoming.fromUserId,
+                calleeId: currentUser.uid,
+                status: 'busy',
+                type,
+                durationSeconds: 0,
+                timestamp: serverTimestamp(),
+              }, { merge: true }).catch(console.error);
+
+              addDoc(collection(db, 'messages'), {
+                threadId,
+                participants: [currentUser.uid, incoming.fromUserId],
+                type: 'call_log',
+                status: 'busy',
+                callType: type,
+                durationSeconds: 0,
+                senderId: incoming.fromUserId,
+                timestamp: serverTimestamp(),
+              }).catch(console.error);
             });
           } else {
             setIncomingCalls([...uniqueCalls]);
@@ -240,18 +264,44 @@ export const CallProvider = ({ children }) => {
   const handleCallDisconnect = (call) => {
     if (call) {
       setCallState(call.state);
+      
+      let unsubscribeBusyListener = null;
+      let wasBusy = false;
+      
+      if (call.isCaller) {
+        // Listen to see if the callee marks the call as "busy"
+        unsubscribeBusyListener = onSnapshot(doc(db, 'call_logs', call.id), (docSnap) => {
+          if (docSnap.exists() && docSnap.data().status === 'busy') {
+            wasBusy = true;
+            alert('The person you called is currently busy on another call.');
+            if (unsubscribeBusyListener) {
+              unsubscribeBusyListener();
+              unsubscribeBusyListener = null;
+            }
+          }
+        });
+      }
+
       call.onState = (state) => {
         setCallState(state);
         
         if (state === 'connected') {
+          if (unsubscribeBusyListener) {
+            unsubscribeBusyListener();
+            unsubscribeBusyListener = null;
+          }
           stopRingtone();
           callStartTimes.current[call.id] = Date.now();
         }
         
         if (state === 'ended' || state === 'failed') {
+          if (unsubscribeBusyListener) {
+            unsubscribeBusyListener();
+            unsubscribeBusyListener = null;
+          }
           stopRingtone();
           
-          let status = 'missed';
+          let status = wasBusy ? 'busy' : 'missed';
           let duration = 0;
           
           if (callStartTimes.current[call.id]) {

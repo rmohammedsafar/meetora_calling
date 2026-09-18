@@ -8,7 +8,7 @@ import {
   signOut,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 
 const AuthContext = createContext();
@@ -44,6 +44,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUserStatus = async (user, status) => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await setDoc(userRef, {
+        status: status,
+        lastSeen: serverTimestamp()
+      }, { merge: true });
+    } catch (error) {
+      console.error("Error updating user status:", error);
+    }
+  };
+
   // Sign Up
   const signup = async (email, password, fullName) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -70,7 +83,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Log Out
-  const logout = () => {
+  const logout = async () => {
+    if (currentUser) {
+      await updateUserStatus(currentUser, 'offline');
+    }
     return signOut(auth);
   };
 
@@ -79,6 +95,7 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         // Ensure user is in Firestore even if they signed up previously
         await saveUserToFirestore(user);
+        await updateUserStatus(user, 'online');
       }
       setCurrentUser(user);
       setLoading(false);
@@ -86,6 +103,28 @@ export const AuthProvider = ({ children }) => {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (currentUser) {
+        updateUserStatus(currentUser, document.visibilityState === 'visible' ? 'online' : 'offline');
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      if (currentUser) {
+        updateUserStatus(currentUser, 'offline');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [currentUser]);
 
   const value = {
     currentUser,

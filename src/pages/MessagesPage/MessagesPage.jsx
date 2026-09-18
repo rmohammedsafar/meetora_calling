@@ -7,6 +7,7 @@ import { collection, getDocs, query, where, orderBy, onSnapshot, addDoc, serverT
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import Avatar from '../../components/Avatar/Avatar';
+import { formatLastSeen } from '../../utils/timeUtils';
 import './MessagesPage.css';
 
 const MessagesPage = () => {
@@ -23,26 +24,26 @@ const MessagesPage = () => {
   };
 
   useEffect(() => {
-    const fetchContacts = async () => {
-      try {
-        const usersRef = collection(db, 'users');
-        const querySnapshot = await getDocs(usersRef);
-        const usersList = [];
-        querySnapshot.forEach((doc) => {
-          if (doc.id !== currentUser?.uid) {
-            usersList.push({ id: doc.id, ...doc.data() });
-          }
-        });
-        setContacts(usersList);
-      } catch (error) {
-        console.error("Error fetching contacts:", error);
-      }
-    };
+    if (!currentUser) return;
 
-    if (currentUser) {
-      fetchContacts();
-    }
+    const usersRef = collection(db, 'users');
+    const unsubscribe = onSnapshot(usersRef, (querySnapshot) => {
+      const usersList = [];
+      querySnapshot.forEach((doc) => {
+        if (doc.id !== currentUser.uid) {
+          usersList.push({ id: doc.id, ...doc.data() });
+        }
+      });
+      setContacts(usersList);
+    }, (error) => {
+      console.error("Error fetching contacts:", error);
+    });
+
+    return () => unsubscribe();
   }, [currentUser]);
+
+  // Derived state to keep active contact up to date with latest presence data
+  const currentActiveContact = contacts.find(c => c.id === activeContact?.id) || activeContact;
 
   useEffect(() => {
     if (!currentUser || !activeContact) return;
@@ -147,7 +148,7 @@ const MessagesPage = () => {
 
       {/* Active Chat Area */}
       <main className="chat-area">
-        {activeContact ? (
+        {currentActiveContact ? (
           <>
             {/* Chat Header */}
             <header className="chat-header">
@@ -155,10 +156,12 @@ const MessagesPage = () => {
                 <button className="mobile-back-btn" onClick={() => setActiveContact(null)}>
                   <ArrowLeft size={20} />
                 </button>
-                <Avatar src={activeContact.photoURL} name={activeContact.displayName} />
+                <Avatar src={currentActiveContact.photoURL} name={currentActiveContact.displayName} />
                 <div>
-                  <h2>{activeContact.displayName}</h2>
-                  <span className="chat-target-status" style={{ color: '#10b981', fontSize: '12px' }}>Online</span>
+                  <h2>{currentActiveContact.displayName}</h2>
+                  <span className="chat-target-status" style={{ color: currentActiveContact.status === 'online' ? '#10b981' : 'var(--text-muted)', fontSize: '12px' }}>
+                    {formatLastSeen(currentActiveContact.status, currentActiveContact.lastSeen)}
+                  </span>
                 </div>
               </div>
               <div className="chat-header-actions">
@@ -174,7 +177,7 @@ const MessagesPage = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', height: '100%' }}>
                   <MessageSquare size={48} style={{ marginBottom: '16px', opacity: 0.5 }} />
                   <h3>No messages yet</h3>
-                  <p>Send a message to start the conversation with {activeContact.displayName.split(' ')[0]}</p>
+                  <p>Send a message to start the conversation with {currentActiveContact.displayName.split(' ')[0]}</p>
                 </div>
               ) : (
                 messages.map(msg => {

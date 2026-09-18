@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCall } from '../../contexts/CallContext';
 import { Search, Phone, Video } from 'lucide-react';
 import Avatar from '../../components/Avatar/Avatar';
+import { formatLastSeen } from '../../utils/timeUtils';
 import './ContactsPage.css';
 
 const ContactsPage = () => {
@@ -28,28 +29,23 @@ const ContactsPage = () => {
     };
     requestPermissions();
 
-    const fetchUsers = async () => {
-      try {
-        const usersRef = collection(db, 'users');
-        const querySnapshot = await getDocs(usersRef);
+    const usersRef = collection(db, 'users');
+    const unsubscribe = onSnapshot(usersRef, (querySnapshot) => {
+      const usersList = [];
+      querySnapshot.forEach((doc) => {
+        // Don't include the current user in their own contacts list
+        if (doc.id !== currentUser.uid) {
+          usersList.push({ id: doc.id, ...doc.data() });
+        }
+      });
+      setUsers(usersList);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching users:", error);
+      setLoading(false);
+    });
 
-        const usersList = [];
-        querySnapshot.forEach((doc) => {
-          // Don't include the current user in their own contacts list
-          if (doc.id !== currentUser.uid) {
-            usersList.push({ id: doc.id, ...doc.data() });
-          }
-        });
-
-        setUsers(usersList);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUsers();
+    return () => unsubscribe();
   }, [currentUser]);
 
   const handleCall = async (uid, isVideo) => {
@@ -108,6 +104,9 @@ const ContactsPage = () => {
                 <div className="contact-details">
                   <span className="contact-name">{user.displayName}</span>
                   <span className="contact-email">{user.email}</span>
+                  <span style={{ fontSize: '12px', color: user.status === 'online' ? '#10b981' : 'var(--text-muted)' }}>
+                    {formatLastSeen(user.status, user.lastSeen)}
+                  </span>
                 </div>
               </div>
               <div className="contact-actions" style={{ display: 'flex', gap: '8px' }}>
