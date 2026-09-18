@@ -481,6 +481,46 @@ export const CallProvider = ({ children }) => {
     }
   };
 
+  // Handle network disconnects (drop call after 5s offline)
+  useEffect(() => {
+    let disconnectTimer = null;
+
+    const handleOffline = () => {
+      disconnectTimer = setTimeout(() => {
+        if (!navigator.onLine) {
+          console.warn('Network offline for 5s. Auto-disconnecting call.');
+          if (activeCallRef.current) {
+            if (typeof activeCallRef.current.end === 'function') {
+              activeCallRef.current.end();
+            }
+            setActiveCall(null);
+            setCallState('idle');
+            stopRingtone();
+          }
+          // Also clear any ringing incoming calls
+          setIncomingCalls([]);
+          stopRingtone();
+        }
+      }, 5000);
+    };
+
+    const handleOnline = () => {
+      if (disconnectTimer) {
+        clearTimeout(disconnectTimer);
+        disconnectTimer = null;
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
+      if (disconnectTimer) clearTimeout(disconnectTimer);
+    };
+  }, []);
+
   const value = {
     vact,
     isVactConnected,
