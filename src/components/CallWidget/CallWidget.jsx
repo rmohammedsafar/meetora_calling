@@ -46,19 +46,58 @@ const CallWidget = () => {
     if (incomingCalls.length > 0) {
       const incoming = incomingCalls[0];
       const uid = incoming.fromUserId;
+      let name = 'Someone';
+      
       if (uid) {
         getDoc(doc(db, 'users', uid)).then(docSnap => {
           if (docSnap.exists()) {
-            setCallerName(docSnap.data().displayName || uid);
+            name = docSnap.data().displayName || uid;
+            setCallerName(name);
           } else {
-            setCallerName(incoming.callerName || uid);
+            name = incoming.callerName || uid;
+            setCallerName(name);
           }
-        }).catch(() => setCallerName(incoming.callerName || uid));
+        }).catch(() => {
+          name = incoming.callerName || uid;
+          setCallerName(name);
+        });
       } else {
-        setCallerName(incoming.callerName || 'Someone');
+        name = incoming.callerName || 'Someone';
+        setCallerName(name);
       }
     }
   }, [incomingCalls]);
+
+  // Request Notification Permission
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Trigger Browser Notification if tab is hidden
+  useEffect(() => {
+    if (incomingCalls.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
+      if (document.visibilityState !== 'visible') {
+        const isVideo = incomingCalls[0].video;
+        const notification = new Notification(`Incoming ${isVideo ? 'Video' : 'Voice'} Call`, {
+          body: `${callerName} is calling you on Meetora`,
+          icon: '/favicon.ico',
+          requireInteraction: true // Keep it open until user interacts
+        });
+
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+
+        // Close notification if the call is answered/declined elsewhere or stops ringing
+        return () => {
+          notification.close();
+        };
+      }
+    }
+  }, [incomingCalls, callerName]);
 
   const toggleMute = () => {
     if (activeCall) {
