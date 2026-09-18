@@ -97,13 +97,25 @@ export const CallProvider = ({ children }) => {
             }
           });
 
-          if (activeCallRef.current && uniqueCalls.length > 0) {
-            // User is on another call; auto-decline new incoming calls
-            uniqueCalls.forEach(incoming => {
+          let callsToRing = [];
+          let callsToDeclineBusy = [];
+
+          if (activeCallRef.current) {
+            // User is on an active connected call, auto-decline ALL new incoming calls
+            callsToDeclineBusy = uniqueCalls;
+          } else if (uniqueCalls.length > 0) {
+            // User is NOT on a connected call, but multiple people might be calling simultaneously.
+            // Allow only the FIRST one to ring, instantly decline the rest as busy.
+            callsToRing = [uniqueCalls[0]];
+            callsToDeclineBusy = uniqueCalls.slice(1);
+          }
+
+          if (callsToDeclineBusy.length > 0) {
+            callsToDeclineBusy.forEach(incoming => {
               incoming.decline().catch(console.error);
               addHandledCallId(incoming.id);
 
-              // Tell the caller we are busy
+              // 1. Tell the caller we are busy
               const type = incoming.video ? 'video' : 'audio';
               const threadId = [currentUser.uid, incoming.fromUserId].sort().join('_');
               
@@ -126,14 +138,37 @@ export const CallProvider = ({ children }) => {
                 senderId: incoming.fromUserId,
                 timestamp: serverTimestamp(),
               }).catch(console.error);
+
+              // 2. Notify the receiver (current user) that they missed a call because they were busy
+              if ('Notification' in window && Notification.permission === 'granted') {
+                const notifyMissed = async () => {
+                  let name = 'Someone';
+                  try {
+                    const snap = await getDoc(doc(db, 'users', incoming.fromUserId));
+                    if (snap.exists()) name = snap.data().displayName || name;
+                  } catch (e) {}
+
+                  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.ready.then(reg => {
+                      reg.showNotification(`Missed Call from ${name}`, {
+                        body: `${name} tried to call you while you were busy.`,
+                        icon: '/favicon.ico',
+                        tag: 'missed-busy-' + incoming.id,
+                        renotify: true
+                      });
+                    });
+                  }
+                };
+                notifyMissed();
+              }
             });
+          }
+
+          setIncomingCalls([...callsToRing]);
+          if (callsToRing.length > 0) {
+            playIncomingRingtone();
           } else {
-            setIncomingCalls([...uniqueCalls]);
-            if (uniqueCalls.length > 0) {
-              playIncomingRingtone();
-            } else {
-              stopRingtone();
-            }
+            stopRingtone();
           }
         });
 
