@@ -302,6 +302,35 @@ export const CallProvider = ({ children }) => {
       
       let unsubscribeBusyListener = null;
       let wasBusy = false;
+      let rtcDisconnectTimer = null;
+      let hasConnected = false;
+      
+      // Monitor WebRTC native connection state for fast drop on ungraceful exits
+      // We only arm this AFTER the call has successfully connected to avoid breaking slow setups
+      if (call.pc) {
+        call.pc.addEventListener('connectionstatechange', () => {
+          if (call.pc.connectionState === 'connected') {
+            hasConnected = true;
+            if (rtcDisconnectTimer) {
+              console.log('Peer recovered connection!');
+              clearTimeout(rtcDisconnectTimer);
+              rtcDisconnectTimer = null;
+            }
+          } else if (hasConnected && call.pc.connectionState === 'disconnected') {
+            console.warn('Peer disconnected. Waiting 5s for recovery...');
+            rtcDisconnectTimer = setTimeout(() => {
+              if (call.pc && call.pc.connectionState !== 'connected') {
+                console.error('Peer did not recover. Dropping call.');
+                if (typeof call.end === 'function') call.end();
+                setCallState('failed');
+                if (activeCallRef.current?.id === call.id) {
+                  setActiveCall(null);
+                }
+              }
+            }, 5000);
+          }
+        });
+      }
       
       if (call.isCaller) {
         // Listen to see if the callee marks the call as "busy"
