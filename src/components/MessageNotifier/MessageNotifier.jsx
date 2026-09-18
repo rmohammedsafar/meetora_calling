@@ -65,6 +65,7 @@ const MessageNotifier = () => {
                     body: data.text,
                     icon: '/favicon.ico',
                     tag: 'msg-' + data.senderId,
+                    renotify: true, // Forces the notification to pop up again even if the tag is the same
                     data: { type: 'message' } // Pass data to identify this as a message notification in sw.js
                   });
                 });
@@ -73,7 +74,8 @@ const MessageNotifier = () => {
                 const notification = new Notification(`New Message from ${senderName}`, {
                   body: data.text,
                   icon: '/favicon.ico',
-                  tag: 'msg-' + data.senderId
+                  tag: 'msg-' + data.senderId,
+                  renotify: true // Forces the notification to pop up again
                 });
                 notification.onclick = () => {
                   window.focus();
