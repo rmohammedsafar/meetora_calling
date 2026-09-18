@@ -302,6 +302,33 @@ export const CallProvider = ({ children }) => {
       
       let unsubscribeBusyListener = null;
       let wasBusy = false;
+      let rtcDisconnectTimer = null;
+      
+      // Monitor WebRTC native connection state for fast drop on ungraceful exits (like peer reloading tab)
+      if (call.pc) {
+        call.pc.addEventListener('connectionstatechange', () => {
+          if (call.pc.connectionState === 'disconnected') {
+            console.warn('Peer disconnected. Waiting 5s for recovery...');
+            rtcDisconnectTimer = setTimeout(() => {
+              if (call.pc && call.pc.connectionState !== 'connected') {
+                console.error('Peer did not recover. Dropping call.');
+                if (typeof call.end === 'function') call.end();
+                // Force UI state to failed if SDK doesn't do it quickly enough
+                setCallState('failed');
+                if (activeCallRef.current?.id === call.id) {
+                  setActiveCall(null);
+                }
+              }
+            }, 5000);
+          } else if (call.pc.connectionState === 'connected') {
+            if (rtcDisconnectTimer) {
+              console.log('Peer recovered connection!');
+              clearTimeout(rtcDisconnectTimer);
+              rtcDisconnectTimer = null;
+            }
+          }
+        });
+      }
       
       if (call.isCaller) {
         // Listen to see if the callee marks the call as "busy"
@@ -518,6 +545,33 @@ export const CallProvider = ({ children }) => {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
       if (disconnectTimer) clearTimeout(disconnectTimer);
+    };
+  }, []);
+
+  // Warn user on reload if active call, and forcefully end it if they proceed
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (activeCallRef.current || isTransitioningRef.current) {
+        e.preventDefault();
+        e.returnValue = ''; // Shows the browser's "Leave site?" warning
+      }
+    };
+
+    const handleUnload = () => {
+      if (activeCallRef.current) {
+        if (typeof activeCallRef.current.end === 'function') {
+          // Fire-and-forget: try to tell VACT backend we are hanging up
+          activeCallRef.current.end();
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('unload', handleUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('unload', handleUnload);
     };
   }, []);
 
