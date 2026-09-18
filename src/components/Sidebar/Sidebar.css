@@ -86,12 +86,12 @@
     width: 100% !important;
     height: 70px !important;
     flex-direction: row !important;
-    padding: 0 16px !important;
+    padding: 0 8px !important;
     border-right: none !important;
     border-top: 1px solid #1e293b !important;
     z-index: 100 !important;
   }
-  .sidebar-logo { display: none !important; }
+  .sidebar-logo-container { display: none !important; }
   .sidebar-nav {
     flex-direction: row !important;
     justify-content: space-around !important;
