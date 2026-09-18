@@ -75,29 +75,70 @@ const CallWidget = () => {
     }
   }, []);
 
+  // Reference to hold active notification tag to close it manually if needed
+  const activeNotificationTag = useRef(null);
+
   // Trigger Browser Notification if tab is hidden
   useEffect(() => {
     if (incomingCalls.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
       if (document.visibilityState !== 'visible') {
         const isVideo = incomingCalls[0].video;
-        const notification = new Notification(`Incoming ${isVideo ? 'Video' : 'Voice'} Call`, {
-          body: `${callerName} is calling you on Meetora`,
-          icon: '/favicon.ico',
-          requireInteraction: true // Keep it open until user interacts
+        const tag = 'incoming-call-' + Date.now();
+        activeNotificationTag.current = tag;
+
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.ready.then(registration => {
+            registration.showNotification(`Incoming ${isVideo ? 'Video' : 'Voice'} Call`, {
+              body: `${callerName} is calling you on Meetora`,
+              icon: '/favicon.ico',
+              tag: tag,
+              requireInteraction: true,
+              actions: [
+                { action: 'answer', title: 'Answer' },
+                { action: 'decline', title: 'Decline' }
+              ]
+            });
+          });
+        }
+      }
+    } else {
+      // Close notification if call ends or is answered
+      if (activeNotificationTag.current && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.getNotifications({ tag: activeNotificationTag.current }).then(notifications => {
+            notifications.forEach(notification => notification.close());
+          });
         });
-
-        notification.onclick = () => {
-          window.focus();
-          notification.close();
-        };
-
-        // Close notification if the call is answered/declined elsewhere or stops ringing
-        return () => {
-          notification.close();
-        };
+        activeNotificationTag.current = null;
       }
     }
   }, [incomingCalls, callerName]);
+
+  // Listen for Service Worker messages
+  useEffect(() => {
+    const handleSWMessage = (event) => {
+      if (event.data && event.data.type === 'CALL_ACTION') {
+        if (incomingCalls.length > 0) {
+          const call = incomingCalls[0];
+          if (event.data.action === 'answer') {
+            acceptCall(call);
+          } else if (event.data.action === 'decline') {
+            declineCall(call);
+          }
+        }
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSWMessage);
+    }
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+      }
+    };
+  }, [incomingCalls, acceptCall, declineCall]);
 
   const toggleMute = () => {
     if (activeCall) {
