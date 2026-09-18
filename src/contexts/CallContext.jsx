@@ -100,8 +100,8 @@ export const CallProvider = ({ children }) => {
           let callsToRing = [];
           let callsToDeclineBusy = [];
 
-          if (activeCallRef.current) {
-            // User is on an active connected call, auto-decline ALL new incoming calls
+          if (activeCallRef.current || isTransitioningRef.current) {
+            // User is on an active connected call OR currently placing a call, auto-decline ALL new incoming calls
             callsToDeclineBusy = uniqueCalls;
           } else if (uniqueCalls.length > 0) {
             // User is NOT on a connected call, but multiple people might be calling simultaneously.
@@ -360,6 +360,16 @@ export const CallProvider = ({ children }) => {
     if (!vact) throw new Error('VACT client not initialized');
     if (activeCallRef.current || isTransitioningRef.current) {
       throw new Error('Already on a call or transitioning');
+    }
+
+    // Auto-decline pending incoming calls if the user decides to place a new call instead of answering
+    if (incomingCalls.length > 0) {
+      incomingCalls.forEach(c => {
+        c.decline().catch(console.error);
+        addHandledCallId(c.id);
+      });
+      setIncomingCalls([]);
+      stopRingtone();
     }
 
     isTransitioningRef.current = true;
