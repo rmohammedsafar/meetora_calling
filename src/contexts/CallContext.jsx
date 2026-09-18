@@ -510,11 +510,13 @@ export const CallProvider = ({ children }) => {
     }
   };
 
-  // Handle network disconnects (drop call after 5s offline)
+  // Handle network disconnects
   useEffect(() => {
     let disconnectTimer = null;
+    let offlineSince = null;
 
     const handleOffline = () => {
+      offlineSince = Date.now();
       disconnectTimer = setTimeout(() => {
         if (!navigator.onLine) {
           console.warn('Network offline for 5s. Auto-disconnecting call.');
@@ -534,10 +536,18 @@ export const CallProvider = ({ children }) => {
     };
 
     const handleOnline = () => {
-      if (disconnectTimer) {
-        clearTimeout(disconnectTimer);
-        disconnectTimer = null;
+      if (disconnectTimer) clearTimeout(disconnectTimer);
+      
+      // If the network was offline for more than 10 seconds, force a full page reload
+      // to ensure all Firebase connections, WebSockets, and VACT states are completely fresh!
+      if (offlineSince && (Date.now() - offlineSince > 10000)) {
+        console.warn('Network was offline for >10s. Reloading page to reset state...');
+        // Small delay to ensure network is actually stable before reloading
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
       }
+      offlineSince = null;
     };
 
     window.addEventListener('offline', handleOffline);
