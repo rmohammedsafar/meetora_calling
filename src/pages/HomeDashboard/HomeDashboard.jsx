@@ -6,6 +6,7 @@ import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/Button/Button';
 import Avatar from '../../components/Avatar/Avatar';
+import { formatLastSeen } from '../../utils/timeUtils';
 import './HomeDashboard.css';
 
 const HomeDashboard = () => {
@@ -127,7 +128,9 @@ const HomeDashboard = () => {
                   <Avatar src={contact.photoURL} name={contact.displayName} size="small" />
                   <div className="contact-details">
                     <h3>{contact.displayName}</h3>
-                    <span className="status status-online">Online</span>
+                    <span className={`status ${contact.status === 'online' ? 'status-online' : 'status-offline'}`}>
+                      {formatLastSeen(contact.status, contact.lastSeen)}
+                    </span>
                   </div>
                 </div>
               ))
