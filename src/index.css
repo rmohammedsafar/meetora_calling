@@ -22,6 +22,12 @@ body {
   background-color: var(--bg-light);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  width: 100%;
+}
+html {
+  overflow-x: hidden;
+  width: 100%;
 }
 
 a {

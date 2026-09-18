@@ -84,9 +84,9 @@
     left: 0 !important;
     top: auto !important;
     width: 100% !important;
-    height: 70px !important;
+    height: calc(70px + env(safe-area-inset-bottom)) !important;
     flex-direction: row !important;
-    padding: 0 8px !important;
+    padding: 0 8px env(safe-area-inset-bottom) 8px !important;
     border-right: none !important;
     border-top: 1px solid #1e293b !important;
     z-index: 100 !important;

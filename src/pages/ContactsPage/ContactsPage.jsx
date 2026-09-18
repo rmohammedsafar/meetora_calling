@@ -115,20 +115,26 @@ const ContactsPage = () => {
                   onClick={() => handleCall(user.id, false)}
                   title="Voice Call"
                   disabled={callingId !== null || callState !== 'idle'}
-                  style={{ backgroundColor: '#3b82f6', padding: '10px 16px' }}
+                  style={{ backgroundColor: '#3b82f6', padding: '10px', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                 >
-                  <Phone size={18} />
-                  {callingId === user.id && callingType === 'audio' && <span style={{fontSize: '12px', marginLeft: '4px'}}>...</span>}
+                  {callingId === user.id && callingType === 'audio' ? (
+                    <span style={{fontSize: '12px', fontWeight: 'bold'}}>...</span>
+                  ) : (
+                    <Phone size={18} color="white" />
+                  )}
                 </button>
                 <button
                   className={`action-btn call-btn video-btn ${callingId === user.id && callingType === 'video' ? 'calling' : ''}`}
                   onClick={() => handleCall(user.id, true)}
                   title="Video Call"
                   disabled={callingId !== null || callState !== 'idle'}
-                  style={{ padding: '10px 16px' }}
+                  style={{ padding: '10px', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
                 >
-                  <Video size={18} />
-                  {callingId === user.id && callingType === 'video' && <span style={{fontSize: '12px', marginLeft: '4px'}}>...</span>}
+                  {callingId === user.id && callingType === 'video' ? (
+                    <span style={{fontSize: '12px', fontWeight: 'bold'}}>...</span>
+                  ) : (
+                    <Video size={18} color="white" />
+                  )}
                 </button>
               </div>
             </div>
