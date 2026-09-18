@@ -39,20 +39,19 @@ const createOscillators = (freq1, freq2) => {
 
 export const playIncomingRingtone = () => {
   try {
-    createOscillators(400, 450); // UK style ringtone
+    createOscillators(750, 800); // High pitched digital sound
     
     const playPattern = () => {
       const t = audioCtx.currentTime;
-      // 0.4s on
-      gainNode.gain.setValueAtTime(0.5, t);
-      gainNode.gain.setValueAtTime(0, t + 0.4);
-      // 0.2s off, then 0.4s on
-      gainNode.gain.setValueAtTime(0.5, t + 0.6);
-      gainNode.gain.setValueAtTime(0, t + 1.0);
+      // Rapid 4-beep sequence
+      for (let i = 0; i < 4; i++) {
+        gainNode.gain.setValueAtTime(0.4, t + (i * 0.2));
+        gainNode.gain.setValueAtTime(0, t + (i * 0.2) + 0.1);
+      }
     };
     
     playPattern();
-    ringInterval = setInterval(playPattern, 3000);
+    ringInterval = setInterval(playPattern, 2000); // repeat every 2s
   } catch (error) {
     console.warn("Audio play failed:", error);
   }
@@ -60,17 +59,17 @@ export const playIncomingRingtone = () => {
 
 export const playOutgoingRingtone = () => {
   try {
-    createOscillators(440, 480); // US style ringback tone
+    createOscillators(425, 475); // Lower pitched standard ringback tone
     
     const playPattern = () => {
       const t = audioCtx.currentTime;
-      // 2s on
-      gainNode.gain.setValueAtTime(0.2, t);
+      // 2s on, steady dial tone sound
+      gainNode.gain.setValueAtTime(0.15, t); // Lower volume for waiting
       gainNode.gain.setValueAtTime(0, t + 2.0);
     };
     
     playPattern();
-    ringInterval = setInterval(playPattern, 6000);
+    ringInterval = setInterval(playPattern, 4000); // repeat every 4s
   } catch (error) {
     console.warn("Audio play failed:", error);
   }
