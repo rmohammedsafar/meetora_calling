@@ -183,3 +183,14 @@
     justify-content: center;
   }
 }
+
+@media (max-width: 600px) {
+  .landing-main { padding: 28px 16px 40px; }
+  .landing-hero { gap: 32px; }
+  .hero-title { font-size: clamp(38px, 12vw, 52px); }
+  .hero-subtitle { font-size: 16px; margin-bottom: 28px; }
+  .hero-cta { width: 100%; flex-direction: column; gap: 10px; margin-bottom: 30px; }
+  .hero-cta .btn { width: 100%; justify-content: center; }
+  .mockup-grid { height: 250px; }
+  .mockup-container { padding: 8px; }
+}

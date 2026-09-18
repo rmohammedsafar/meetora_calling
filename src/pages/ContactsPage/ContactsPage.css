@@ -158,3 +158,11 @@
   }
   .action-btn { width: 100% !important; justify-content: center !important; }
 }
+
+@media (max-width: 480px) {
+  .contact-card { padding: 16px; }
+  .contact-info { width: 100%; gap: 12px; min-width: 0; }
+  .contact-details { min-width: 0; }
+  .contact-name, .contact-email { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contact-actions { flex-direction: column; gap: 8px; }
+}

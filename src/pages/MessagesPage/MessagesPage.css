@@ -534,3 +534,15 @@
     font-size: 15px;
   }
 }
+
+@media (max-width: 480px) {
+  .threads-header { padding: 16px; }
+  .threads-search { padding: 0 12px 12px; }
+  .threads-tabs { padding: 0 12px 10px; }
+  .chat-header { padding: 10px 12px; }
+  .chat-header-actions { gap: 2px; }
+  .chat-messages-container { padding: 12px; }
+  .message-bubble { max-width: 86%; }
+  .message-input-area { padding: 8px; }
+  .input-action-btn { display: none; }
+}

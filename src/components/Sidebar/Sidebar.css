@@ -106,3 +106,9 @@
   }
   .sidebar-bottom { display: none !important; }
 }
+
+@media (max-width: 480px) {
+  .sidebar { height: 64px !important; padding: 0 4px !important; }
+  .sidebar-link { padding: 6px 4px !important; font-size: 9px !important; }
+  .sidebar-link svg { width: 18px; height: 18px; }
+}

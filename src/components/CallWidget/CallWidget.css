@@ -210,3 +210,13 @@
     max-width: 400px;
   }
 }
+
+@media (max-width: 480px) {
+  .call-widget-overlay { bottom: 72px; right: 8px; left: 8px; }
+  .call-widget-container { max-width: none; border-radius: 14px; }
+  .incoming-call-view { padding: 20px 16px; gap: 16px; }
+  .active-call-view { height: min(70dvh, 520px); min-height: 360px; }
+  .call-controls-bar { gap: 10px; padding: 24px 10px 12px; }
+  .control-btn { width: 42px; height: 42px; }
+  .local-video-container { width: 76px; height: 102px; right: 10px; bottom: 72px; }
+}

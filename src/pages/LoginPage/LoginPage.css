@@ -443,3 +443,11 @@
   .login-form-panel { padding: 24px 16px !important; justify-content: center !important;}
   .login-box { width: 100% !important; padding: 24px 16px !important; }
 }
+
+@media (max-width: 480px) {
+  .signup-page { min-height: 100dvh; }
+  .signup-right { padding: 20px 14px; }
+  .form-container { padding: 20px 0; }
+  .form-header h2 { font-size: 26px; }
+  .oauth-buttons { flex-direction: column; gap: 10px; }
+}

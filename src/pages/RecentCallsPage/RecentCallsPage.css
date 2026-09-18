@@ -136,3 +136,16 @@
   background-color: var(--bg-surface, #1e293b);
   border-radius: 12px;
 }
+
+@media (max-width: 600px) {
+  .recent-calls-page { padding: 16px 0; }
+  .calls-header { margin-bottom: 20px; }
+  .calls-header h1 { font-size: 26px; }
+  .call-log-card { align-items: flex-start; gap: 12px; padding: 14px; }
+  .call-info-left { min-width: 0; gap: 10px; }
+  .call-details h3 { max-width: 135px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .call-meta { gap: 6px; font-size: 12px; }
+  .call-time-right { flex-shrink: 0; }
+  .call-date { font-size: 11px; text-align: right; }
+  .empty-state { padding: 40px 16px; }
+}

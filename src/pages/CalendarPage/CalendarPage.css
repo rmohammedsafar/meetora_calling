@@ -243,3 +243,15 @@
   border-left-color: #10b981;
   color: #064e3b;
 }
+
+@media (max-width: 600px) {
+  .calendar-header { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .calendar-header > button { width: 100%; justify-content: center; }
+  .calendar-toolbar { align-items: stretch; flex-direction: column; gap: 12px; }
+  .toolbar-left { gap: 8px; justify-content: space-between; }
+  .current-month { font-size: 16px; }
+  .view-toggles { width: 100%; }
+  .toggle-btn { flex: 1; }
+  .calendar-grid-container { overflow-x: auto; }
+  .calendar-days-header, .calendar-grid-body { min-width: 620px; }
+}
