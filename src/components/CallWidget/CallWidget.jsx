@@ -13,14 +13,22 @@ const CallWidget = () => {
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
   const [callerName, setCallerName] = useState('Someone');
   const [callDuration, setCallDuration] = useState(0);
+  const callStartTimeRef = useRef(null);
 
   useEffect(() => {
     let interval;
     if (callState === 'connected') {
+      if (!callStartTimeRef.current) {
+        callStartTimeRef.current = Date.now();
+      }
+      // Instantly set the correct time before the first interval tick
+      setCallDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000));
+      
       interval = setInterval(() => {
-        setCallDuration(prev => prev + 1);
+        setCallDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000));
       }, 1000);
     } else {
+      callStartTimeRef.current = null;
       setCallDuration(0);
     }
     return () => clearInterval(interval);
