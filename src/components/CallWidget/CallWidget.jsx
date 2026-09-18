@@ -263,17 +263,29 @@ const CallWidget = () => {
   }, [incomingCalls, acceptCall, declineCall]);
 
   const toggleMute = () => {
+    const nextMuted = !isMuted;
     if (activeCall) {
-      activeCall.setMicrophoneEnabled(isMuted);
+      if (typeof activeCall.setMicrophoneEnabled === 'function') {
+        activeCall.setMicrophoneEnabled(!nextMuted);
+      }
+      if (activeCall.localStream) {
+        activeCall.localStream.getAudioTracks().forEach(t => t.enabled = !nextMuted);
+      }
     }
-    setIsMuted(!isMuted);
+    setIsMuted(nextMuted);
   };
 
   const toggleVideo = () => {
+    const nextVideoOff = !isVideoOff;
     if (activeCall) {
-      activeCall.setCameraEnabled(isVideoOff);
+      if (typeof activeCall.setCameraEnabled === 'function') {
+        activeCall.setCameraEnabled(!nextVideoOff);
+      }
+      if (activeCall.localStream) {
+        activeCall.localStream.getVideoTracks().forEach(t => t.enabled = !nextVideoOff);
+      }
     }
-    setIsVideoOff(!isVideoOff);
+    setIsVideoOff(nextVideoOff);
   };
 
   const toggleSpeaker = () => {
