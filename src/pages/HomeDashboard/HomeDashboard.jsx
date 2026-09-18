@@ -71,36 +71,9 @@ const HomeDashboard = () => {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        <Button variant="primary" size="large" className="action-btn" onClick={() => alert('Please select a contact from the Contacts tab to start a call.')}>
-          <Video size={18} /> Start a meeting
-        </Button>
-        <Button variant="outline" size="large" className="action-btn action-btn-secondary">
-          <Hash size={18} /> Join with code
-        </Button>
-      </div>
 
       {/* Dashboard Grid Content */}
       <div className="dashboard-grid">
-        {/* Column 1: Meetings */}
-        <div className="grid-column">
-          <div className="section-header">
-            <h2>Upcoming meetings</h2>
-            <button className="view-all">View all</button>
-          </div>
-          
-          <div className="card-list">
-            <div className="empty-state" style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', backgroundColor: 'var(--bg-white)', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-              <p>No upcoming meetings</p>
-            </div>
-          </div>
-          
-          <Button variant="outline" className="w-full mt-4" style={{marginTop: '16px'}}>
-            <CalendarIcon size={16} style={{marginRight: '8px'}} /> Schedule meeting
-          </Button>
-        </div>
-
         {/* Column 2: Recent Conversations */}
         <div className="grid-column">
           <div className="section-header">

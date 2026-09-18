@@ -5,7 +5,6 @@ import LandingPage from './pages/LandingPage/LandingPage';
 import LoginPage from './pages/LoginPage/LoginPage';
 import AppLayout from './layouts/AppLayout/AppLayout';
 import HomeDashboard from './pages/HomeDashboard/HomeDashboard';
-import CalendarPage from './pages/CalendarPage/CalendarPage';
 import MessagesPage from './pages/MessagesPage/MessagesPage';
 import ContactsPage from './pages/ContactsPage/ContactsPage';
 import RecentCallsPage from './pages/RecentCallsPage/RecentCallsPage';
@@ -39,12 +38,10 @@ function App() {
             {/* Authenticated App Routes */}
             <Route path="/app" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route index element={<HomeDashboard />} />
-              <Route path="calendar" element={<CalendarPage />} />
               <Route path="messages" element={<MessagesPage />} />
               <Route path="calls" element={<RecentCallsPage />} />
               <Route path="contacts" element={<ContactsPage />} />
               {/* Placeholders for remaining app routes */}
-              <Route path="meetings" element={<div>Meetings Page (To be implemented)</div>} />
               <Route path="settings" element={<div>Settings Page (To be implemented)</div>} />
               <Route path="support" element={<div>Support Page (To be implemented)</div>} />
             </Route>

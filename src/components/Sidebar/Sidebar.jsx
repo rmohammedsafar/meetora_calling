@@ -15,14 +15,6 @@ const Sidebar = () => {
           <Home size={20} />
           <span>Home</span>
         </NavLink>
-        <NavLink to="/app/meetings" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
-          <Video size={20} />
-          <span>Meetings</span>
-        </NavLink>
-        <NavLink to="/app/calendar" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
-          <Calendar size={20} />
-          <span>Calendar</span>
-        </NavLink>
         <NavLink to="/app/contacts" className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`}>
           <Users size={20} />
           <span>Contacts</span>
