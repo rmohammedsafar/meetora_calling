@@ -71,6 +71,15 @@ const ContactsPage = () => {
     const nameMatch = user.displayName?.toLowerCase().includes(searchLower);
     const emailMatch = user.email?.toLowerCase().includes(searchLower);
     return nameMatch || emailMatch;
+  }).sort((a, b) => {
+    // Online users first
+    if (a.status === 'online' && b.status !== 'online') return -1;
+    if (a.status !== 'online' && b.status === 'online') return 1;
+    
+    // Alphabetical fallback
+    const nameA = a.displayName || a.email || '';
+    const nameB = b.displayName || b.email || '';
+    return nameA.localeCompare(nameB);
   });
 
   return (
