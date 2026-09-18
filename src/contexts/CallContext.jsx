@@ -153,7 +153,7 @@ export const CallProvider = ({ children }) => {
                       reg.showNotification(`Missed Call from ${name}`, {
                         body: `${name} tried to call you while you were busy.`,
                         icon: '/favicon.ico',
-                        tag: 'missed-busy-' + incoming.id,
+                        tag: 'missed-busy-' + incoming.fromUserId,
                         renotify: true
                       });
                     });
