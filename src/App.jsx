@@ -10,6 +10,7 @@ import MessagesPage from './pages/MessagesPage/MessagesPage';
 import ContactsPage from './pages/ContactsPage/ContactsPage';
 import RecentCallsPage from './pages/RecentCallsPage/RecentCallsPage';
 import CallWidget from './components/CallWidget/CallWidget';
+import MessageNotifier from './components/MessageNotifier/MessageNotifier';
 
 import { CallProvider } from './contexts/CallContext';
 
@@ -29,6 +30,7 @@ function App() {
     <AuthProvider>
       <CallProvider>
         <CallWidget />
+        <MessageNotifier />
         <Router>
           <Routes>
             <Route path="/" element={<LandingPage />} />

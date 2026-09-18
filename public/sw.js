@@ -12,13 +12,24 @@ self.addEventListener('notificationclick', function(event) {
         // Focus the first available client
         client.focus();
         
-        // Send the action message to the client
-        if (action) {
-          client.postMessage({ type: 'CALL_ACTION', action: action });
+        // Send the action message to the client if it's a call
+        if (notification.data && notification.data.type === 'message') {
+          // If it's a message notification, navigate to messages page
+          if ('navigate' in client) {
+            client.navigate('/app/messages');
+          }
         } else {
-          // Default click (body click) - just focus, maybe answer by default or do nothing
-          client.postMessage({ type: 'CALL_ACTION', action: 'focus' });
+          // It's a call notification
+          if (action) {
+            client.postMessage({ type: 'CALL_ACTION', action: action });
+          } else {
+            // Default click (body click) - just focus
+            client.postMessage({ type: 'CALL_ACTION', action: 'focus' });
+          }
         }
+      } else if (notification.data && notification.data.type === 'message') {
+        // If no client is open, open a new window to the messages page
+        clients.openWindow('/app/messages');
       }
     })
   );
