@@ -82,8 +82,11 @@ const CallWidget = () => {
   useEffect(() => {
     if (incomingCalls.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
       if (document.visibilityState !== 'visible') {
-        const isVideo = incomingCalls[0].video;
-        const tag = 'incoming-call-' + Date.now();
+        const incomingCall = incomingCalls[0];
+        const isVideo = incomingCall.video;
+        // Use the call ID as the tag so the browser updates the existing notification 
+        // instead of creating new ones if callerName changes or if multiple tabs are open.
+        const tag = 'incoming-call-' + incomingCall.id;
         activeNotificationTag.current = tag;
 
         if ('serviceWorker' in navigator) {
