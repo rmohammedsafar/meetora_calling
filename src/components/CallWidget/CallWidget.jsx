@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Video, Mic, MicOff, PhoneOff, Phone, Volume2, VolumeX } from 'lucide-react';
+import { Video, Mic, MicOff, PhoneOff, Phone, Volume2, VolumeX, PictureInPicture } from 'lucide-react';
 import { useCall } from '../../contexts/CallContext';
 import Avatar from '../Avatar/Avatar';
 import { doc, getDoc } from 'firebase/firestore';
@@ -12,6 +12,125 @@ const CallWidget = () => {
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
   const [callerName, setCallerName] = useState('Someone');
+  const [callDuration, setCallDuration] = useState(0);
+
+  useEffect(() => {
+    let interval;
+    if (callState === 'connected') {
+      interval = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      setCallDuration(0);
+    }
+    return () => clearInterval(interval);
+  }, [callState]);
+
+  const formatDuration = (seconds) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const callDurationRef = useRef(0);
+  const callerNameRef = useRef('Someone');
+  useEffect(() => { callDurationRef.current = callDuration; }, [callDuration]);
+  useEffect(() => { callerNameRef.current = callerName; }, [callerName]);
+
+  const pipVideoRef = useRef(null);
+  const pipCanvasRef = useRef(null);
+
+  const togglePiP = async () => {
+    if (document.pictureInPictureElement) {
+      await document.exitPictureInPicture();
+      return;
+    }
+
+    if (!pipCanvasRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 300;
+      pipCanvasRef.current = canvas;
+    }
+    
+    if (!pipVideoRef.current) {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      pipVideoRef.current = video;
+    }
+
+    const canvas = pipCanvasRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    let animationId;
+    const draw = () => {
+      // Draw background
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw video frame if available
+      if (!isAudioOnly && remoteVideoRef.current && remoteVideoRef.current.readyState >= 2) {
+        // Calculate aspect ratio to fit video in canvas
+        const vidW = remoteVideoRef.current.videoWidth;
+        const vidH = remoteVideoRef.current.videoHeight;
+        if (vidW && vidH) {
+          const ratio = Math.min(canvas.width / vidW, canvas.height / vidH);
+          const w = vidW * ratio;
+          const h = vidH * ratio;
+          const x = (canvas.width - w) / 2;
+          const y = (canvas.height - h) / 2;
+          ctx.drawImage(remoteVideoRef.current, x, y, w, h);
+        }
+      } else {
+        // Draw Audio Avatar Placeholder
+        ctx.fillStyle = '#3b82f6';
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2 - 20, 50, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 40px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(callerNameRef.current.charAt(0).toUpperCase(), canvas.width / 2, canvas.height / 2 - 20);
+      }
+      
+      // Draw Overlay Top Bar
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+      ctx.fillRect(0, 0, canvas.width, 40);
+      
+      // Draw Name
+      ctx.fillStyle = 'white';
+      ctx.font = '16px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(callerNameRef.current, 10, 20);
+      
+      // Draw Timer
+      ctx.textAlign = 'right';
+      ctx.fillText(formatDuration(callDurationRef.current), canvas.width - 10, 20);
+      
+      animationId = requestAnimationFrame(draw);
+    };
+    
+    draw();
+    
+    try {
+      const stream = canvas.captureStream(30);
+      pipVideoRef.current.srcObject = stream;
+      await pipVideoRef.current.play();
+      await pipVideoRef.current.requestPictureInPicture();
+    } catch (e) {
+      console.error("PiP failed", e);
+      alert("Picture-in-Picture is not supported by your browser.");
+      cancelAnimationFrame(animationId);
+    }
+    
+    pipVideoRef.current.addEventListener('leavepictureinpicture', () => {
+      cancelAnimationFrame(animationId);
+    }, { once: true });
+  };
+
   
   const hasLocalVideo = activeCall?.localStream?.getVideoTracks().length > 0;
   const hasRemoteVideo = activeCall?.remoteStream?.getVideoTracks().length > 0;
@@ -215,12 +334,16 @@ const CallWidget = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'white', position: 'absolute', inset: 0 }}>
                   <Avatar name={callerName} size="large" />
                   <h3 style={{ marginTop: '16px' }}>Voice Call</h3>
-                  <p>{callState}</p>
+                  <p>{callState === 'connected' ? formatDuration(callDuration) : callState}</p>
                 </div>
               ) : (
                 <>
-                  {callState !== 'connected' && (
+                  {callState !== 'connected' ? (
                     <div className="video-placeholder">State: {callState}...</div>
+                  ) : (
+                    <div style={{ position: 'absolute', top: '16px', left: '16px', backgroundColor: 'rgba(0,0,0,0.5)', padding: '4px 12px', borderRadius: '16px', color: 'white', fontSize: '14px', zIndex: 10 }}>
+                      {formatDuration(callDuration)}
+                    </div>
                   )}
                   
                   {/* Local Video (Picture-in-Picture) */}
@@ -267,8 +390,18 @@ const CallWidget = () => {
                 </button>
               )}
               
+              {callState === 'connected' && (
+                <button 
+                  className="control-btn" 
+                  onClick={togglePiP}
+                  title="Picture-in-Picture"
+                >
+                  <PictureInPicture size={20} />
+                </button>
+              )}
+              
               <button 
-                className="control-btn btn-danger" 
+                className="control-btn btn-danger"  
                 onClick={endCall}
                 title="End Call"
               >
