@@ -16,6 +16,9 @@ export const CallProvider = ({ children }) => {
   const [vact, setVact] = useState(null);
   const [activeCall, setActiveCall] = useState(null);
   const activeCallRef = React.useRef(null);
+  const recentDropRef = useRef(null);
+  const [pendingReconnect, setPendingReconnect] = useState(null);
+  const [pendingAutoAccept, setPendingAutoAccept] = useState(null);
 
   // Keep ref in sync with state for use inside closures
   useEffect(() => {
@@ -82,6 +85,18 @@ export const CallProvider = ({ children }) => {
           // Filter out calls we've already handled (accepted/declined) in this or previous sessions
           let newCalls = calls.filter(c => !hasHandledCall(c.id));
           
+          // Auto-Accept logic for reconnection
+          const now = Date.now();
+          if (recentDropRef.current && (now - recentDropRef.current.timestamp) < 15000) {
+            const reconnectCall = newCalls.find(c => c.fromUserId === recentDropRef.current.userId);
+            if (reconnectCall) {
+              console.log("Auto-accepting reconnecting call from", reconnectCall.fromUserId);
+              recentDropRef.current = null; // consume it
+              setPendingAutoAccept(reconnectCall);
+              newCalls = newCalls.filter(c => c.id !== reconnectCall.id);
+            }
+          }
+
           // Deduplicate calls from the SAME user (take only the first one, auto-decline the rest)
           const seenUsers = new Set();
           const uniqueCalls = [];
@@ -234,6 +249,19 @@ export const CallProvider = ({ children }) => {
           setVact(client);
           setIsVactConnected(true);
           console.log('Successfully connected to VACT as', currentUser.uid);
+
+          // Check for reconnect
+          const reconnectPayload = sessionStorage.getItem('meetora:reconnect_call');
+          if (reconnectPayload) {
+            sessionStorage.removeItem('meetora:reconnect_call');
+            try {
+              const data = JSON.parse(reconnectPayload);
+              if (Date.now() - data.timestamp < 15000) {
+                console.log("Auto-redialing previously active call to", data.targetUserId);
+                setPendingReconnect(data);
+              }
+            } catch(e) {}
+          }
         } else {
           client.disconnect();
         }
@@ -364,6 +392,11 @@ export const CallProvider = ({ children }) => {
             unsubscribeBusyListener = null;
           }
           stopRingtone();
+          
+          recentDropRef.current = {
+            userId: call.otherUserId,
+            timestamp: Date.now()
+          };
           
           let status = wasBusy ? 'busy' : 'missed';
           let duration = 0;
@@ -564,6 +597,15 @@ export const CallProvider = ({ children }) => {
   useEffect(() => {
     const handleBeforeUnload = (e) => {
       if (activeCallRef.current || isTransitioningRef.current) {
+        if (activeCallRef.current) {
+          const hasLocalVideo = activeCallRef.current.localStream?.getVideoTracks().length > 0;
+          const hasRemoteVideo = activeCallRef.current.remoteStream?.getVideoTracks().length > 0;
+          sessionStorage.setItem('meetora:reconnect_call', JSON.stringify({
+            targetUserId: activeCallRef.current.otherUserId,
+            video: hasLocalVideo || hasRemoteVideo,
+            timestamp: Date.now()
+          }));
+        }
         e.preventDefault();
         e.returnValue = ''; // Shows the browser's "Leave site?" warning
       }
@@ -586,6 +628,22 @@ export const CallProvider = ({ children }) => {
       window.removeEventListener('unload', handleUnload);
     };
   }, []);
+
+  useEffect(() => {
+    if (vact && isVactConnected && pendingReconnect && !activeCallRef.current && !isTransitioningRef.current) {
+      const data = pendingReconnect;
+      setPendingReconnect(null);
+      placeCall(data.targetUserId, { video: data.video }).catch(console.error);
+    }
+  }, [vact, isVactConnected, pendingReconnect]);
+
+  useEffect(() => {
+    if (pendingAutoAccept && !activeCallRef.current && !isTransitioningRef.current) {
+      const callToAccept = pendingAutoAccept;
+      setPendingAutoAccept(null);
+      acceptCall(callToAccept).catch(console.error);
+    }
+  }, [pendingAutoAccept]);
 
   const value = {
     vact,
