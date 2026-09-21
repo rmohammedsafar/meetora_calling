@@ -212,6 +212,25 @@ export const CallProvider = ({ children }) => {
           throw new Error('connect() failed! AppID: ' + appId + ' | Token: ' + accessToken + ' | Reason: ' + connErr.message);
         }
 
+        // Handle token expiration automatically
+        client.onSessionExpired = async () => {
+          console.log("VACT session expired, fetching new token...");
+          try {
+            const res = await fetch('https://meetora-calling.onrender.com/api/vact-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: currentUser.uid })
+            });
+            if (res.ok) {
+              const d = await res.json();
+              await client.renew(d.accessToken);
+              console.log("Token renewed successfully!");
+            }
+          } catch (e) {
+            console.error("Failed to renew token", e);
+          }
+        };
+
         // Give VACT's initial event feed time to arrive, then clear all calls
         // that existed before this page session and record them as missed.
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -383,7 +402,11 @@ export const CallProvider = ({ children }) => {
             unsubscribeBusyListener = null;
           }
           stopRingtone();
-          callStartTimes.current[call.id] = Date.now();
+          
+          // Only set start time if it doesn't exist to prevent resetting on network reconnects
+          if (!callStartTimes.current[call.id]) {
+            callStartTimes.current[call.id] = Date.now();
+          }
         }
         
         if (state === 'ended' || state === 'failed') {
