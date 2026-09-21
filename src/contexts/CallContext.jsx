@@ -418,10 +418,26 @@ export const CallProvider = ({ children }) => {
   };
 
   // Helper to place a call
-  const placeCall = async (targetUserId, options = { video: true }) => {
+  const placeCall = async (targetUserId, options = { video: true, isReconnect: false }) => {
     if (!vact) throw new Error('VACT client not initialized');
     if (activeCallRef.current || isTransitioningRef.current) {
       throw new Error('Already on a call or transitioning');
+    }
+
+    // Check if the user is online before placing a fresh call
+    if (!options.isReconnect) {
+      try {
+        const userSnap = await getDoc(doc(db, 'users', targetUserId));
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          if (userData.status !== 'online') {
+            alert('This user is currently offline.');
+            return null;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to check user online status', e);
+      }
     }
 
     // Auto-decline pending incoming calls if the user decides to place a new call instead of answering
@@ -633,7 +649,7 @@ export const CallProvider = ({ children }) => {
     if (vact && isVactConnected && pendingReconnect && !activeCallRef.current && !isTransitioningRef.current) {
       const data = pendingReconnect;
       setPendingReconnect(null);
-      placeCall(data.targetUserId, { video: data.video }).catch(console.error);
+      placeCall(data.targetUserId, { video: data.video, isReconnect: true }).catch(console.error);
     }
   }, [vact, isVactConnected, pendingReconnect]);
 
