@@ -315,6 +315,8 @@
 
 .status-online { color: #10b981; }
 .status-online::before { background-color: #10b981; }
+.status-away { color: #f59e0b; }
+.status-away::before { background-color: #f59e0b; }
 
 .status-meeting { color: #f59e0b; }
 .status-meeting::before { background-color: #f59e0b; }

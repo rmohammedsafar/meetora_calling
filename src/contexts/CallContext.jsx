@@ -430,7 +430,7 @@ export const CallProvider = ({ children }) => {
         const userSnap = await getDoc(doc(db, 'users', targetUserId));
         if (userSnap.exists()) {
           const userData = userSnap.data();
-          if (userData.status !== 'online') {
+          if (userData.status === 'offline') {
             alert('This user is currently offline.');
             return null;
           }

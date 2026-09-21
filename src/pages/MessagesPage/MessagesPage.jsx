@@ -159,7 +159,7 @@ const MessagesPage = () => {
                 <Avatar src={currentActiveContact.photoURL} name={currentActiveContact.displayName} />
                 <div>
                   <h2>{currentActiveContact.displayName}</h2>
-                  <span className="chat-target-status" style={{ color: currentActiveContact.status === 'online' ? '#10b981' : 'var(--text-muted)', fontSize: '12px' }}>
+                  <span className="chat-target-status" style={{ color: currentActiveContact.status === 'online' ? '#10b981' : currentActiveContact.status === 'away' ? '#f59e0b' : 'var(--text-muted)', fontSize: '12px' }}>
                     {formatLastSeen(currentActiveContact.status, currentActiveContact.lastSeen)}
                   </span>
                 </div>

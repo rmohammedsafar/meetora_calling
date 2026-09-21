@@ -72,10 +72,12 @@ const ContactsPage = () => {
     const emailMatch = user.email?.toLowerCase().includes(searchLower);
     return nameMatch || emailMatch;
   }).sort((a, b) => {
-    // Online users first
+    // Online users first, then away, then offline
     if (a.status === 'online' && b.status !== 'online') return -1;
     if (a.status !== 'online' && b.status === 'online') return 1;
-    
+    if (a.status === 'away' && b.status === 'offline') return -1;
+    if (a.status === 'offline' && b.status === 'away') return 1;
+
     // Alphabetical fallback
     const nameA = a.displayName || a.email || '';
     const nameB = b.displayName || b.email || '';
@@ -113,7 +115,7 @@ const ContactsPage = () => {
                 <div className="contact-details">
                   <span className="contact-name">{user.displayName}</span>
                   <span className="contact-email">{user.email}</span>
-                  <span style={{ fontSize: '12px', color: user.status === 'online' ? '#10b981' : 'var(--text-muted)' }}>
+                  <span style={{ fontSize: '12px', color: user.status === 'online' ? '#10b981' : user.status === 'away' ? '#f59e0b' : 'var(--text-muted)' }}>
                     {formatLastSeen(user.status, user.lastSeen)}
                   </span>
                 </div>

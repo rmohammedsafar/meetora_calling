@@ -107,7 +107,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (currentUser) {
-        updateUserStatus(currentUser, document.visibilityState === 'visible' ? 'online' : 'offline');
+        updateUserStatus(currentUser, document.visibilityState === 'visible' ? 'online' : 'away');
       }
     };
 

@@ -2,6 +2,9 @@ export const formatLastSeen = (status, lastSeenTimestamp) => {
   if (status === 'online') {
     return 'Online';
   }
+  if (status === 'away') {
+    return 'Away';
+  }
 
   if (!lastSeenTimestamp) {
     return 'Offline';

@@ -101,7 +101,7 @@ const HomeDashboard = () => {
                   <Avatar src={contact.photoURL} name={contact.displayName} size="small" />
                   <div className="contact-details">
                     <h3>{contact.displayName}</h3>
-                    <span className={`status ${contact.status === 'online' ? 'status-online' : 'status-offline'}`}>
+                    <span className={`status ${contact.status === 'online' ? 'status-online' : (contact.status === 'away' ? 'status-away' : 'status-offline')}`}>
                       {formatLastSeen(contact.status, contact.lastSeen)}
                     </span>
                   </div>
