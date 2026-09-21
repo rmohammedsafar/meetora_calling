@@ -78,6 +78,21 @@ const ContactsPage = () => {
     if (a.status === 'away' && b.status === 'offline') return -1;
     if (a.status === 'offline' && b.status === 'away') return 1;
 
+    // Sort by lastSeen (most recent first)
+    const getTime = (timestamp) => {
+      if (!timestamp) return 0;
+      if (timestamp.seconds) return timestamp.seconds;
+      if (timestamp.toDate) return timestamp.toDate().getTime();
+      return new Date(timestamp).getTime();
+    };
+    
+    const timeA = getTime(a.lastSeen);
+    const timeB = getTime(b.lastSeen);
+    
+    if (timeA !== timeB) {
+      return timeB - timeA; // Descending order
+    }
+
     // Alphabetical fallback
     const nameA = a.displayName || a.email || '';
     const nameB = b.displayName || b.email || '';

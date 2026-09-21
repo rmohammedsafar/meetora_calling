@@ -25,6 +25,31 @@ const HomeDashboard = () => {
             usersList.push({ id: doc.id, ...doc.data() });
           }
         });
+        usersList.sort((a, b) => {
+          if (a.status === 'online' && b.status !== 'online') return -1;
+          if (a.status !== 'online' && b.status === 'online') return 1;
+          if (a.status === 'away' && b.status === 'offline') return -1;
+          if (a.status === 'offline' && b.status === 'away') return 1;
+
+          const getTime = (timestamp) => {
+            if (!timestamp) return 0;
+            if (timestamp.seconds) return timestamp.seconds;
+            if (timestamp.toDate) return timestamp.toDate().getTime();
+            return new Date(timestamp).getTime();
+          };
+          
+          const timeA = getTime(a.lastSeen);
+          const timeB = getTime(b.lastSeen);
+          
+          if (timeA !== timeB) {
+            return timeB - timeA;
+          }
+
+          const nameA = a.displayName || a.email || '';
+          const nameB = b.displayName || b.email || '';
+          return nameA.localeCompare(nameB);
+        });
+
         setContacts(usersList.slice(0, 5)); // Show up to 5 contacts
       } catch (error) {
         console.error("Error fetching contacts:", error);
