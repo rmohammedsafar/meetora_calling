@@ -3,7 +3,8 @@ import { VactClient } from '@firstlogicmetalab/client';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
 import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { ref, get } from 'firebase/database';
+import { db, rtdb } from '../firebase';
 
 const CallContext = createContext();
 
@@ -450,13 +451,16 @@ export const CallProvider = ({ children }) => {
     // Check if the user is online before placing a fresh call
     if (!options.isReconnect) {
       try {
-        const userSnap = await getDoc(doc(db, 'users', targetUserId));
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
+        const statusSnap = await get(ref(rtdb, `/status/${targetUserId}`));
+        if (statusSnap.exists()) {
+          const userData = statusSnap.val();
           if (userData.status === 'offline') {
             alert('This user is currently offline.');
             return null;
           }
+        } else {
+          alert('This user is currently offline.');
+          return null;
         }
       } catch (e) {
         console.warn('Failed to check user online status', e);

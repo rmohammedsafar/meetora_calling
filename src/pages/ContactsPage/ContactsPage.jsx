@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { db, rtdb } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCall } from '../../contexts/CallContext';
 import { Search, Phone, Video } from 'lucide-react';
@@ -30,22 +31,46 @@ const ContactsPage = () => {
     requestPermissions();
 
     const usersRef = collection(db, 'users');
-    const unsubscribe = onSnapshot(usersRef, (querySnapshot) => {
+    let firestoreUsers = [];
+    let rtdbStatuses = {};
+    
+    const mergeUsers = () => {
+      const merged = firestoreUsers.map(user => {
+        if (rtdbStatuses[user.id]) {
+          return { ...user, status: rtdbStatuses[user.id].status, lastSeen: rtdbStatuses[user.id].lastSeen };
+        }
+        return user;
+      });
+      setUsers(merged);
+    };
+
+    const unsubscribeFirestore = onSnapshot(usersRef, (querySnapshot) => {
       const usersList = [];
       querySnapshot.forEach((doc) => {
-        // Don't include the current user in their own contacts list
         if (doc.id !== currentUser.uid) {
           usersList.push({ id: doc.id, ...doc.data() });
         }
       });
-      setUsers(usersList);
+      firestoreUsers = usersList;
+      mergeUsers();
       setLoading(false);
     }, (error) => {
       console.error("Error fetching users:", error);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    const statusRef = ref(rtdb, 'status');
+    const unsubscribeRTDB = onValue(statusRef, (snap) => {
+      if (snap.exists()) {
+        rtdbStatuses = snap.val();
+        mergeUsers();
+      }
+    });
+
+    return () => {
+      unsubscribeFirestore();
+      unsubscribeRTDB();
+    };
   }, [currentUser]);
 
   const handleCall = async (uid, isVideo) => {

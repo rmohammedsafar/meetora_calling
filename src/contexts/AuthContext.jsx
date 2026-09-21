@@ -9,7 +9,8 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { ref, set, onDisconnect, serverTimestamp as rtdbServerTimestamp, onValue } from 'firebase/database';
+import { auth, db, rtdb } from '../firebase';
 
 const AuthContext = createContext();
 
@@ -47,6 +48,14 @@ export const AuthProvider = ({ children }) => {
   const updateUserStatus = async (user, status) => {
     if (!user) return;
     try {
+      // 1. Write to RTDB (Source of Truth)
+      const userStatusRef = ref(rtdb, `/status/${user.uid}`);
+      await set(userStatusRef, {
+        status: status,
+        lastSeen: rtdbServerTimestamp()
+      });
+
+      // 2. Write to Firestore as a fallback
       const userRef = doc(db, 'users', user.uid);
       await setDoc(userRef, {
         status: status,
@@ -91,17 +100,50 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    let unsubscribeConnected;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Ensure user is in Firestore even if they signed up previously
         await saveUserToFirestore(user);
-        await updateUserStatus(user, 'online');
+        
+        // Setup RTDB Presence
+        const myStatusRef = ref(rtdb, `/status/${user.uid}`);
+        const connectedRef = ref(rtdb, '.info/connected');
+        
+        unsubscribeConnected = onValue(connectedRef, (snap) => {
+          if (snap.val() === true) {
+            // We're connected (or reconnected)! Set up the disconnect hook.
+            onDisconnect(myStatusRef).set({
+              status: 'offline',
+              lastSeen: rtdbServerTimestamp()
+            }).then(() => {
+              // Now that the disconnect hook is set, declare ourselves online/away.
+              const currentStatus = document.visibilityState === 'visible' ? 'online' : 'away';
+              set(myStatusRef, {
+                status: currentStatus,
+                lastSeen: rtdbServerTimestamp()
+              });
+              
+              // Keep Firestore roughly in sync for fallback usage
+              setDoc(doc(db, 'users', user.uid), {
+                status: currentStatus,
+                lastSeen: serverTimestamp()
+              }, { merge: true }).catch(() => {});
+            });
+          }
+        });
+      } else {
+        if (unsubscribeConnected) unsubscribeConnected();
       }
+      
       setCurrentUser(user);
       setLoading(false);
     });
 
-    return unsubscribe;
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeConnected) unsubscribeConnected();
+    };
   }, []);
 
   useEffect(() => {

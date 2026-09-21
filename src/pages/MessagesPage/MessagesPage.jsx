@@ -4,7 +4,8 @@ import {
   Smile, Paperclip, Send, FileText, MessageSquare, PhoneMissed, PhoneOutgoing, PhoneIncoming, ArrowLeft
 } from 'lucide-react';
 import { collection, getDocs, query, where, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { ref, onValue } from 'firebase/database';
+import { db, rtdb } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import Avatar from '../../components/Avatar/Avatar';
 import { formatLastSeen } from '../../utils/timeUtils';
@@ -27,19 +28,44 @@ const MessagesPage = () => {
     if (!currentUser) return;
 
     const usersRef = collection(db, 'users');
-    const unsubscribe = onSnapshot(usersRef, (querySnapshot) => {
+    let firestoreUsers = [];
+    let rtdbStatuses = {};
+    
+    const mergeUsers = () => {
+      const merged = firestoreUsers.map(user => {
+        if (rtdbStatuses[user.id]) {
+          return { ...user, status: rtdbStatuses[user.id].status, lastSeen: rtdbStatuses[user.id].lastSeen };
+        }
+        return user;
+      });
+      setContacts(merged);
+    };
+
+    const unsubscribeFirestore = onSnapshot(usersRef, (querySnapshot) => {
       const usersList = [];
       querySnapshot.forEach((doc) => {
         if (doc.id !== currentUser.uid) {
           usersList.push({ id: doc.id, ...doc.data() });
         }
       });
-      setContacts(usersList);
+      firestoreUsers = usersList;
+      mergeUsers();
     }, (error) => {
       console.error("Error fetching contacts:", error);
     });
 
-    return () => unsubscribe();
+    const statusRef = ref(rtdb, 'status');
+    const unsubscribeRTDB = onValue(statusRef, (snap) => {
+      if (snap.exists()) {
+        rtdbStatuses = snap.val();
+        mergeUsers();
+      }
+    });
+
+    return () => {
+      unsubscribeFirestore();
+      unsubscribeRTDB();
+    };
   }, [currentUser]);
 
   // Derived state to keep active contact up to date with latest presence data
