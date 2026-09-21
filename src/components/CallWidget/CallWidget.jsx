@@ -25,7 +25,13 @@ const CallWidget = () => {
       setCallDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000));
       
       interval = setInterval(() => {
-        setCallDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000));
+        const currentDuration = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+        if (currentDuration >= 3600) {
+          endCall();
+          alert('Maximum call duration of 60 minutes reached.');
+        } else {
+          setCallDuration(currentDuration);
+        }
       }, 1000);
     } else {
       clearInterval(interval);
@@ -35,7 +41,7 @@ const CallWidget = () => {
       }
     }
     return () => clearInterval(interval);
-  }, [callState]);
+  }, [callState, endCall]);
 
   const formatDuration = (seconds) => {
     const m = Math.floor(seconds / 60);
