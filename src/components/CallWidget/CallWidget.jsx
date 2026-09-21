@@ -28,8 +28,11 @@ const CallWidget = () => {
         setCallDuration(Math.floor((Date.now() - callStartTimeRef.current) / 1000));
       }, 1000);
     } else {
-      callStartTimeRef.current = null;
-      setCallDuration(0);
+      clearInterval(interval);
+      if (callState === 'idle' || callState === 'ended' || callState === 'failed') {
+        callStartTimeRef.current = null;
+        setCallDuration(0);
+      }
     }
     return () => clearInterval(interval);
   }, [callState]);
