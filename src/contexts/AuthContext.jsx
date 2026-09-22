@@ -9,9 +9,8 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
-import { ref, set, onDisconnect, serverTimestamp as rtdbServerTimestamp, onValue } from 'firebase/database';
 import { getToken } from 'firebase/messaging';
-import { auth, db, rtdb, messaging } from '../firebase';
+import { auth, db, messaging } from '../firebase';
 
 const AuthContext = createContext();
 
@@ -38,6 +37,8 @@ export const AuthProvider = ({ children }) => {
           email: user.email,
           displayName: user.displayName || additionalData.displayName || 'Anonymous',
           photoURL: user.photoURL || null,
+          status: 'online',
+          lastSeen: serverTimestamp(),
           createdAt: new Date().toISOString()
         }, { merge: true });
       }
@@ -69,21 +70,13 @@ export const AuthProvider = ({ children }) => {
   const updateUserStatus = async (user, status) => {
     if (!user) return;
     try {
-      // 1. Write to RTDB (Source of Truth)
-      const userStatusRef = ref(rtdb, `/status/${user.uid}`);
-      await set(userStatusRef, {
-        status: status,
-        lastSeen: rtdbServerTimestamp()
-      });
-
-      // 2. Write to Firestore as a fallback
       const userRef = doc(db, 'users', user.uid);
       await setDoc(userRef, {
         status: status,
         lastSeen: serverTimestamp()
       }, { merge: true });
     } catch (error) {
-      console.error("Error updating user status:", error);
+      console.error("Error updating user status in Firestore:", error);
     }
   };
 
@@ -115,57 +108,20 @@ export const AuthProvider = ({ children }) => {
   // Log Out
   const logout = async () => {
     if (currentUser) {
-      try {
-        const myStatusRef = ref(rtdb, `/status/${currentUser.uid}`);
-        await onDisconnect(myStatusRef).cancel();
-      } catch (e) {
-        console.warn("Could not cancel onDisconnect hook", e);
-      }
       await updateUserStatus(currentUser, 'offline');
     }
     return signOut(auth);
   };
 
   useEffect(() => {
-    let unsubscribeConnected;
-
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        // Do not await this to avoid race conditions with rapid auth state changes
         saveUserToFirestore(user).catch(e => console.error("Error saving user", e));
         registerFCMToken(user);
         
-        // Setup RTDB Presence
-        const myStatusRef = ref(rtdb, `/status/${user.uid}`);
-        const connectedRef = ref(rtdb, '.info/connected');
-        
-        unsubscribeConnected = onValue(connectedRef, (snap) => {
-          if (snap.val() === true) {
-            // We're connected (or reconnected)! Set up the disconnect hook.
-            onDisconnect(myStatusRef).set({
-              status: 'offline',
-              lastSeen: rtdbServerTimestamp()
-            }).then(() => {
-              // Now that the disconnect hook is set, declare ourselves online/away.
-              const currentStatus = document.visibilityState === 'visible' ? 'online' : 'away';
-              set(myStatusRef, {
-                status: currentStatus,
-                lastSeen: rtdbServerTimestamp()
-              });
-              
-              // Keep Firestore roughly in sync for fallback usage
-              setDoc(doc(db, 'users', user.uid), {
-                status: currentStatus,
-                lastSeen: serverTimestamp()
-              }, { merge: true }).catch(() => {});
-            });
-          }
-        });
-      } else {
-        if (unsubscribeConnected) {
-          unsubscribeConnected();
-          unsubscribeConnected = null;
-        }
+        // Set initial presence status in Firestore
+        const currentStatus = document.visibilityState === 'visible' ? 'online' : 'away';
+        updateUserStatus(user, currentStatus);
       }
       
       setCurrentUser(user);
@@ -174,28 +130,39 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       unsubscribeAuth();
-      if (unsubscribeConnected) unsubscribeConnected();
     };
   }, []);
 
   useEffect(() => {
+    if (!currentUser) return;
+
     const handleVisibilityChange = () => {
-      if (currentUser) {
-        updateUserStatus(currentUser, document.visibilityState === 'visible' ? 'online' : 'away');
-      }
+      const isVisible = document.visibilityState === 'visible';
+      updateUserStatus(currentUser, isVisible ? 'online' : 'away');
+    };
+
+    const handlePageHide = () => {
+      updateUserStatus(currentUser, 'away');
+    };
+
+    const handlePageShow = () => {
+      const isVisible = document.visibilityState === 'visible';
+      updateUserStatus(currentUser, isVisible ? 'online' : 'away');
     };
 
     const handleBeforeUnload = () => {
-      if (currentUser) {
-        updateUserStatus(currentUser, 'offline');
-      }
+      updateUserStatus(currentUser, 'offline');
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('pageshow', handlePageShow);
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [currentUser]);

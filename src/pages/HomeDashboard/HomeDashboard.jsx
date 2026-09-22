@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Bell, Video, Hash, Calendar as CalendarIcon, FileText } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
-import { ref, get } from 'firebase/database';
-import { db, rtdb } from '../../firebase';
+import { db } from '../../firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import Button from '../../components/Button/Button';
 import Avatar from '../../components/Avatar/Avatar';
@@ -26,21 +25,6 @@ const HomeDashboard = () => {
             usersList.push({ id: doc.id, ...doc.data() });
           }
         });
-
-        try {
-          const statusesSnap = await get(ref(rtdb, 'status'));
-          if (statusesSnap.exists()) {
-            const statuses = statusesSnap.val();
-            usersList.forEach(u => {
-              if (statuses[u.id]) {
-                u.status = statuses[u.id].status;
-                u.lastSeen = statuses[u.id].lastSeen;
-              }
-            });
-          }
-        } catch (e) {
-           console.warn('Failed to fetch RTDB presence for dashboard', e);
-        }
         usersList.sort((a, b) => {
           if (a.status === 'online' && b.status !== 'online') return -1;
           if (a.status !== 'online' && b.status === 'online') return 1;
