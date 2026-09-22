@@ -76,6 +76,9 @@ export const CallProvider = ({ children }) => {
         client = new VactClient(appId);
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
+          // Cleanup can run while token exchange or event polling is pending.
+          // An obsolete client must never clear the current client's popup.
+          if (isCancelled) return;
           const validIncoming = (calls || []).filter(c => c && c.fromUserId !== currentUser.uid);
 
           if (validIncoming.length === 0) {
@@ -134,6 +137,8 @@ export const CallProvider = ({ children }) => {
 
         const data = await response.json();
         const accessToken = data.accessToken;
+
+        if (isCancelled) return;
 
         console.log("Attempting to connect to VACT with App ID:", appId, "and token:", accessToken);
 

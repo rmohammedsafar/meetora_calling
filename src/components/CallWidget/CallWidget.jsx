@@ -214,9 +214,12 @@ const CallWidget = () => {
   // Reference to hold active notification tag to close it manually if needed
   // Reference to hold active notification tag to close it manually if needed
   const activeNotificationTag = useRef(null);
+  const directNotificationRef = useRef(null);
 
   // Trigger Browser Notification for Incoming Calls
   useEffect(() => {
+    let cancelled = false;
+    let workerTimer;
     if (incomingCalls.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
       const incomingCall = incomingCalls[0];
       const isVideo = incomingCall.video;
@@ -246,12 +249,15 @@ const CallWidget = () => {
       };
 
       const showDirectNotification = () => {
+        if (cancelled) return;
         try {
           // Action buttons are supported only by showNotification(), not
           // the desktop Notification constructor (which throws TypeError).
           const directOptions = { ...options };
           delete directOptions.actions;
           const notification = new Notification(title, directOptions);
+          directNotificationRef.current?.close();
+          directNotificationRef.current = notification;
           notification.onclick = () => {
             window.focus();
             notification.close();
@@ -265,25 +271,35 @@ const CallWidget = () => {
       // buttons work regardless of whether the tab is visible.
       if ('serviceWorker' in navigator) {
         const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Service worker notification timeout')), 2000)
+          workerTimer = setTimeout(() => reject(new Error('Service worker notification timeout')), 2000)
         );
         Promise.race([navigator.serviceWorker.ready, timeout])
-          .then(registration => registration.showNotification(title, options))
+          .then(registration => {
+            clearTimeout(workerTimer);
+            if (!cancelled) return registration.showNotification(title, options);
+          })
           .catch(showDirectNotification);
       } else {
         showDirectNotification();
       }
     } else {
+      directNotificationRef.current?.close();
+      directNotificationRef.current = null;
       // Close notification if call ends or is answered
       if (activeNotificationTag.current && 'serviceWorker' in navigator) {
+        const endedTag = activeNotificationTag.current;
         navigator.serviceWorker.ready.then(registration => {
-          registration.getNotifications({ tag: activeNotificationTag.current }).then(notifications => {
+          registration.getNotifications({ tag: endedTag }).then(notifications => {
             notifications.forEach(notification => notification.close());
           });
         }).catch(() => {});
         activeNotificationTag.current = null;
       }
     }
+    return () => {
+      cancelled = true;
+      clearTimeout(workerTimer);
+    };
   }, [incomingCalls, callerName]);
 
   // Listen for Service Worker messages
