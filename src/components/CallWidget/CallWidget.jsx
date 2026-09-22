@@ -228,7 +228,7 @@ const CallWidget = () => {
       const title = `Incoming ${isVideo ? 'Video' : 'Voice'} Call`;
       const options = {
         body: `${callerName || 'Someone'} is calling you on Meetora`,
-        icon: '/favicon.ico',
+        icon: '/favicon.svg',
         badge: '/favicon.svg',
         tag: tag,
         requireInteraction: true,
@@ -247,7 +247,11 @@ const CallWidget = () => {
 
       const showDirectNotification = () => {
         try {
-          const notification = new Notification(title, options);
+          // Action buttons are supported only by showNotification(), not
+          // the desktop Notification constructor (which throws TypeError).
+          const directOptions = { ...options };
+          delete directOptions.actions;
+          const notification = new Notification(title, directOptions);
           notification.onclick = () => {
             window.focus();
             notification.close();
@@ -257,13 +261,9 @@ const CallWidget = () => {
         }
       };
 
-      // A visible desktop tab should use the browser Notification API
-      // directly. This avoids waiting on Firebase's worker and is the most
-      // reliable path for laptop notifications. Use the service worker when
-      // the tab is hidden so the notification can stay actionable.
-      if (document.visibilityState === 'visible') {
-        showDirectNotification();
-      } else if ('serviceWorker' in navigator) {
+      // Prefer persistent notifications on desktop and mobile so action
+      // buttons work regardless of whether the tab is visible.
+      if ('serviceWorker' in navigator) {
         const timeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Service worker notification timeout')), 2000)
         );
@@ -290,8 +290,8 @@ const CallWidget = () => {
   useEffect(() => {
     const handleSWMessage = (event) => {
       if (event.data && event.data.type === 'CALL_ACTION') {
-        if (incomingCalls.length > 0) {
-          const call = incomingCalls[0];
+        const call = incomingCalls.find(c => c.id === event.data.callId);
+        if (call) {
           if (event.data.action === 'answer') {
             acceptCall(call);
           } else if (event.data.action === 'decline') {
