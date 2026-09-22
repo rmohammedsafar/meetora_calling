@@ -13,6 +13,38 @@ const HomeDashboard = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [contacts, setContacts] = useState([]);
+  const [notifPermission, setNotifPermission] = useState(
+    typeof window !== 'undefined' && 'Notification' in window ? Notification.permission : 'granted'
+  );
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      alert('This browser does not support desktop notifications.');
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    setNotifPermission(perm);
+    if (perm === 'granted') {
+      new Notification('Meetora Notifications Enabled!', {
+        body: 'Desktop notifications are now active on your laptop.',
+        icon: '/favicon.ico'
+      });
+    } else {
+      alert('Notifications are blocked in your browser settings. Please click the padlock or tune icon in your browser URL bar to allow notifications for this site.');
+    }
+  };
+
+  const handleTestNotification = () => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      new Notification('Meetora Test Notification', {
+        body: 'Notifications are working properly on your desktop!',
+        icon: '/favicon.ico'
+      });
+    } else {
+      requestNotificationPermission();
+    }
+  };
 
   useEffect(() => {
     const fetchContacts = async () => {
@@ -70,9 +102,13 @@ const HomeDashboard = () => {
         </div>
         
         <div className="header-actions">
-          <button className="icon-button">
+          <button 
+            className="icon-button" 
+            title={notifPermission === 'granted' ? "Click to test desktop notification" : "Click to enable notifications"}
+            onClick={handleTestNotification}
+          >
             <Bell size={20} />
-            <span className="badge"></span>
+            {notifPermission !== 'granted' && <span className="badge" style={{ background: '#ef4444' }}></span>}
           </button>
           
           <div className="user-profile">
@@ -84,6 +120,39 @@ const HomeDashboard = () => {
           </div>
         </div>
       </header>
+
+      {notifPermission !== 'granted' && (
+        <div style={{
+          background: 'rgba(239, 68, 68, 0.12)',
+          border: '1px solid rgba(239, 68, 68, 0.35)',
+          color: '#f87171',
+          padding: '12px 20px',
+          borderRadius: '10px',
+          margin: '16px 24px 0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          fontSize: '14px'
+        }}>
+          <span>🔔 <strong>Desktop notifications are not enabled.</strong> Enable them to get alerts for incoming calls and messages when Meetora is in the background.</span>
+          <button 
+            onClick={requestNotificationPermission}
+            style={{
+              background: '#ef4444',
+              color: '#fff',
+              border: 'none',
+              padding: '6px 14px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Enable Notifications
+          </button>
+        </div>
+      )}
 
       {/* Welcome Section */}
       <div className="welcome-section">

@@ -44,8 +44,9 @@ const MessageNotifier = () => {
 
           // Only notify for actual text messages (not call_log)
           if (data.type === 'text') {
-            // Check if tab is hidden
-            if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+            // Check if user is not actively focused on this page (unfocused window, another tab, or hidden)
+            const isNotFocused = !document.hasFocus() || document.visibilityState !== 'visible';
+            if (isNotFocused && 'Notification' in window && Notification.permission === 'granted') {
               
               // Fetch sender's name
               let senderName = 'Someone';

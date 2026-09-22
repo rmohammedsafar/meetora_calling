@@ -212,33 +212,40 @@ const CallWidget = () => {
   }, []);
 
   // Reference to hold active notification tag to close it manually if needed
+  // Reference to hold active notification tag to close it manually if needed
   const activeNotificationTag = useRef(null);
 
-  // Trigger Browser Notification if tab is hidden
+  // Trigger Browser Notification for Incoming Calls
   useEffect(() => {
     if (incomingCalls.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
-      if (document.visibilityState !== 'visible') {
-        const incomingCall = incomingCalls[0];
-        const isVideo = incomingCall.video;
-        // Use the call ID as the tag so the browser updates the existing notification 
-        // instead of creating new ones if callerName changes or if multiple tabs are open.
-        const tag = 'incoming-call-' + incomingCall.id;
-        activeNotificationTag.current = tag;
+      const incomingCall = incomingCalls[0];
+      const isVideo = incomingCall.video;
+      // Use the call ID as the tag so the browser updates the existing notification 
+      // instead of creating new ones if callerName changes or if multiple tabs are open.
+      const tag = 'incoming-call-' + incomingCall.id;
+      activeNotificationTag.current = tag;
 
-        if ('serviceWorker' in navigator) {
-          navigator.serviceWorker.ready.then(registration => {
-            registration.showNotification(`Incoming ${isVideo ? 'Video' : 'Voice'} Call`, {
-              body: `${callerName} is calling you on Meetora`,
-              icon: '/favicon.ico',
-              tag: tag,
-              requireInteraction: true,
-              actions: [
-                { action: 'answer', title: 'Answer' },
-                { action: 'decline', title: 'Decline' }
-              ]
-            });
-          });
-        }
+      const title = `Incoming ${isVideo ? 'Video' : 'Voice'} Call`;
+      const options = {
+        body: `${callerName || 'Someone'} is calling you on Meetora`,
+        icon: '/favicon.ico',
+        tag: tag,
+        requireInteraction: true,
+        renotify: true,
+        actions: [
+          { action: 'answer', title: 'Answer' },
+          { action: 'decline', title: 'Decline' }
+        ]
+      };
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(registration => {
+          registration.showNotification(title, options);
+        }).catch(() => {
+          new Notification(title, options);
+        });
+      } else {
+        new Notification(title, options);
       }
     } else {
       // Close notification if call ends or is answered
@@ -247,7 +254,7 @@ const CallWidget = () => {
           registration.getNotifications({ tag: activeNotificationTag.current }).then(notifications => {
             notifications.forEach(notification => notification.close());
           });
-        });
+        }).catch(() => {});
         activeNotificationTag.current = null;
       }
     }
