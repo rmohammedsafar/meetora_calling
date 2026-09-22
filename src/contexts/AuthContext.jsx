@@ -94,6 +94,12 @@ export const AuthProvider = ({ children }) => {
   // Log Out
   const logout = async () => {
     if (currentUser) {
+      try {
+        const myStatusRef = ref(rtdb, `/status/${currentUser.uid}`);
+        await onDisconnect(myStatusRef).cancel();
+      } catch (e) {
+        console.warn("Could not cancel onDisconnect hook", e);
+      }
       await updateUserStatus(currentUser, 'offline');
     }
     return signOut(auth);
@@ -102,9 +108,10 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let unsubscribeConnected;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
-        await saveUserToFirestore(user);
+        // Do not await this to avoid race conditions with rapid auth state changes
+        saveUserToFirestore(user).catch(e => console.error("Error saving user", e));
         
         // Setup RTDB Presence
         const myStatusRef = ref(rtdb, `/status/${user.uid}`);
@@ -133,7 +140,10 @@ export const AuthProvider = ({ children }) => {
           }
         });
       } else {
-        if (unsubscribeConnected) unsubscribeConnected();
+        if (unsubscribeConnected) {
+          unsubscribeConnected();
+          unsubscribeConnected = null;
+        }
       }
       
       setCurrentUser(user);
