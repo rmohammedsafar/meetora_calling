@@ -1,15 +1,8 @@
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
-// We need to initialize the app in the service worker with the config
-// However, since we don't have access to process.env here easily without a bundler plugin,
-// we have to rely on a dynamic approach or hardcode it. 
-// A typical workaround is to pass the config or generate this file dynamically.
-// For now, you will need to replace these with your actual config values manually
-// or inject them during your build process.
-
 firebase.initializeApp({
-  apiKey: "AIzaSyBudqrie2HF6JDWEG4eiyoLJAptOqNndnk", // From your .env
+  apiKey: "AIzaSyBudqrie2HF6JDWEG4eiyoLJAptOqNndnk",
   authDomain: "meetora-39ab0.firebaseapp.com",
   projectId: "meetora-39ab0",
   storageBucket: "meetora-39ab0.firebasestorage.app",
@@ -21,12 +14,46 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  const notificationTitle = payload.notification.title;
+
+  // If the caller cancelled the call, dismiss the notification automatically
+  if (payload.data && payload.data.type === 'call_cancelled') {
+    const callTag = 'call-' + payload.data.callId;
+    self.registration.getNotifications({ tag: callTag }).then((notifications) => {
+      notifications.forEach(n => n.close());
+    });
+    return;
+  }
+
+  const isCall = payload.data && payload.data.type === 'incoming_call';
+  const notificationTitle = payload.notification?.title || (isCall ? 'Incoming Call' : 'New Notification');
   const notificationOptions = {
-    body: payload.notification.body,
+    body: payload.notification?.body || (isCall ? 'Tap to answer call on Meetora' : ''),
     icon: '/favicon.ico',
+    badge: '/favicon.ico',
+    tag: isCall ? ('call-' + payload.data.callId) : undefined,
+    renotify: true,
+    requireInteraction: isCall ? true : false,
+    vibrate: isCall ? [500, 250, 500, 250, 500, 250, 500] : [200, 100, 200],
     data: payload.data
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
+});
+
+// When user taps on the notification, focus or open the Meetora app
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if ('focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
+  );
 });

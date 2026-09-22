@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 import { VactClient } from '@firstlogicmetalab/client';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
-import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const CallContext = createContext();
@@ -25,6 +25,11 @@ export const CallProvider = ({ children }) => {
     activeCallRef.current = activeCall;
   }, [activeCall]);
   const [incomingCalls, setIncomingCalls] = useState([]);
+  const incomingCallsRef = useRef([]);
+  const setIncomingCallsWithRef = (calls) => {
+    incomingCallsRef.current = typeof calls === 'function' ? calls(incomingCallsRef.current) : calls;
+    setIncomingCalls(calls);
+  };
   const [isVactConnected, setIsVactConnected] = useState(false);
   const isTransitioningRef = useRef(false);
 
@@ -85,18 +90,35 @@ export const CallProvider = ({ children }) => {
           // Filter out calls we've already handled locally or originating from ourselves
           let newCalls = calls.filter(c => !hasHandledCall(c.id) && c.fromUserId !== currentUser.uid);
           
-          if (newCalls.length === 0) return;
+          if (newCalls.length === 0) {
+            if (incomingCallsRef.current.length > 0) {
+              console.log("Caller hung up or cancelled incoming call. Stopping ringtone.");
+              incomingCallsRef.current.forEach(c => addHandledCallId(c.id));
+              setIncomingCallsWithRef([]);
+              stopRingtone();
+            }
+            return;
+          }
 
           // ASYNC CHECK: Ensure this isn't an "old ghost call" that was already concluded in the past
-          // by checking if it already exists in Firestore call_logs.
+          // by checking if it already exists in Firestore call_logs or ended in calls.
           Promise.all(newCalls.map(async (c) => {
             try {
-              const snap = await getDoc(doc(db, 'call_logs', c.id));
-              if (snap.exists()) {
+              const [logSnap, callSnap] = await Promise.all([
+                getDoc(doc(db, 'call_logs', c.id)),
+                getDoc(doc(db, 'calls', c.id))
+              ]);
+              if (logSnap.exists()) {
                 console.log("Filtered out global ghost call:", c.id);
                 addHandledCallId(c.id);
                 c.decline().catch(() => {});
                 return null; // Ghost call
+              }
+              if (callSnap.exists() && callSnap.data().status !== 'ringing') {
+                console.log("Filtered out already ended/cancelled call:", c.id);
+                addHandledCallId(c.id);
+                c.decline().catch(() => {});
+                return null;
               }
               return c; // Valid new call
             } catch (e) {
@@ -104,7 +126,15 @@ export const CallProvider = ({ children }) => {
             }
           })).then((verifiedCalls) => {
             const validCalls = verifiedCalls.filter(Boolean);
-            if (validCalls.length === 0) return;
+            if (validCalls.length === 0) {
+              if (incomingCallsRef.current.length > 0) {
+                console.log("No valid incoming calls remaining. Stopping ringtone.");
+                incomingCallsRef.current.forEach(c => addHandledCallId(c.id));
+                setIncomingCallsWithRef([]);
+                stopRingtone();
+              }
+              return;
+            }
 
             // Auto-Accept logic for reconnection
             const now = Date.now();
@@ -197,7 +227,7 @@ export const CallProvider = ({ children }) => {
             });
           }
 
-          setIncomingCalls([...callsToRing]);
+          setIncomingCallsWithRef([...callsToRing]);
           if (callsToRing.length > 0) {
             playIncomingRingtone();
           } else {
@@ -280,7 +310,7 @@ export const CallProvider = ({ children }) => {
             timestamp: serverTimestamp(),
           }).catch(error => console.warn('Failed to record missed message:', error));
         });
-        setIncomingCalls([]);
+        setIncomingCallsWithRef([]);
         stopRingtone();
 
         if (!isCancelled) {
@@ -452,6 +482,12 @@ export const CallProvider = ({ children }) => {
           // Write log for caller and callee
           writeCallLog(call, status, duration);
 
+          // Mark call as ended in calls collection
+          updateDoc(doc(db, 'calls', call.id), {
+            status: 'ended',
+            endedAt: serverTimestamp()
+          }).catch(() => {});
+
           setActiveCall(null);
           setCallState('idle');
         }
@@ -491,13 +527,25 @@ export const CallProvider = ({ children }) => {
         c.decline().catch(console.error);
         addHandledCallId(c.id);
       });
-      setIncomingCalls([]);
+      setIncomingCallsWithRef([]);
       stopRingtone();
     }
 
     isTransitioningRef.current = true;
     try {
       const call = await vact.call(targetUserId, options);
+      
+      // Save active call in Firestore: triggers FCM push and enables instant cancellation sync
+      setDoc(doc(db, 'calls', call.id), {
+        callId: call.id,
+        callerId: currentUser.uid,
+        callerName: currentUser.displayName || 'Someone',
+        calleeId: targetUserId,
+        type: options.video ? 'video' : 'audio',
+        status: 'ringing',
+        createdAt: serverTimestamp()
+      }).catch(err => console.warn('Failed to write call doc to Firestore', err));
+
       playOutgoingRingtone();
       handleCallDisconnect(call);
       setActiveCall(call);
@@ -518,6 +566,11 @@ export const CallProvider = ({ children }) => {
     try {
       const call = await incomingCall.accept({ video: incomingCall.video, audio: true });
       
+      updateDoc(doc(db, 'calls', incomingCall.id), {
+        status: 'connected',
+        connectedAt: serverTimestamp()
+      }).catch(() => {});
+
       // Auto-decline any other ghost calls to prevent them popping up later
       incomingCalls.forEach(c => {
         if (c.id !== incomingCall.id) {
@@ -543,6 +596,11 @@ export const CallProvider = ({ children }) => {
     stopRingtone();
     try {
       await incomingCall.decline();
+
+      updateDoc(doc(db, 'calls', incomingCall.id), {
+        status: 'declined',
+        declinedAt: serverTimestamp()
+      }).catch(() => {});
       
       // Write explicitly declined log
       const logRef = doc(db, 'call_logs', incomingCall.id);
@@ -577,7 +635,7 @@ export const CallProvider = ({ children }) => {
       });
       addHandledCallId(incomingCall.id);
       
-      setIncomingCalls(prev => prev.filter(c => c.id !== incomingCall.id));
+      setIncomingCallsWithRef(prev => prev.filter(c => c.id !== incomingCall.id));
     } catch (error) {
       console.error('Failed to decline call:', error);
     }
@@ -587,6 +645,13 @@ export const CallProvider = ({ children }) => {
   const endCall = () => {
     stopRingtone();
     if (activeCall) {
+      if (activeCall.id) {
+        updateDoc(doc(db, 'calls', activeCall.id), {
+          status: 'ended',
+          endedAt: serverTimestamp()
+        }).catch(() => {});
+      }
+
       // The VACT SDK requires cancel() if giving up before the call connects, and end() otherwise.
       if (activeCall.state === 'ringing' || activeCall.state === 'connecting') {
         if (typeof activeCall.cancel === 'function') {
@@ -603,6 +668,30 @@ export const CallProvider = ({ children }) => {
       setCallState('idle');
     }
   };
+
+  // Live listener to auto-stop ringtone if caller cancels/ends call in Firestore
+  useEffect(() => {
+    if (incomingCalls.length === 0) return;
+    const currentCall = incomingCalls[0];
+    const unsubscribe = onSnapshot(doc(db, 'calls', currentCall.id), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.status === 'ended' || data.status === 'cancelled' || data.status === 'declined') {
+          console.log(`Caller marked call as ${data.status} in Firestore. Stopping ringtone.`);
+          addHandledCallId(currentCall.id);
+          if (typeof currentCall.decline === 'function') {
+            currentCall.decline().catch(() => {});
+          }
+          setIncomingCallsWithRef([]);
+          stopRingtone();
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [incomingCalls]);
 
   // Handle network disconnects
   useEffect(() => {
@@ -623,7 +712,7 @@ export const CallProvider = ({ children }) => {
             stopRingtone();
           }
           // Also clear any ringing incoming calls
-          setIncomingCalls([]);
+          setIncomingCallsWithRef([]);
           stopRingtone();
         }
       }, 5000);
