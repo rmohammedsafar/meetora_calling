@@ -9,7 +9,7 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
-import { getToken } from 'firebase/messaging';
+import { getToken, onMessage } from 'firebase/messaging';
 import { auth, db, messaging } from '../firebase';
 
 const AuthContext = createContext();
@@ -49,23 +49,85 @@ export const AuthProvider = ({ children }) => {
 
   const registerFCMToken = async (user) => {
     try {
-      if (!('Notification' in window)) return;
-      const permission = await Notification.requestPermission();
-      if (permission === 'granted') {
+      if (!('Notification' in window)) {
+        console.warn("Notifications not supported in this browser.");
+        return;
+      }
+      
+      let permission = Notification.permission;
+      if (permission === 'default') {
+        permission = await Notification.requestPermission();
+      }
+
+      if (permission === 'granted' && 'serviceWorker' in navigator) {
+        // Ensure the firebase messaging service worker is ready
+        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+        await navigator.serviceWorker.ready;
+
         const currentToken = await getToken(messaging, { 
-          vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY 
+          vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
+          serviceWorkerRegistration: registration
         });
+
         if (currentToken) {
+          console.log("FCM registration successful. Token acquired:", currentToken.substring(0, 15) + "...");
           const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, {
+          await setDoc(userRef, {
             fcmTokens: arrayUnion(currentToken)
-          });
+          }, { merge: true });
+        } else {
+          console.warn("No FCM registration token received.");
         }
+      } else {
+        console.warn("Notification permission status:", permission);
       }
     } catch (error) {
       console.error("Error registering FCM token:", error);
     }
   };
+
+  // Foreground notification handler (when tab is open but not focused)
+  useEffect(() => {
+    if (!('Notification' in window)) return;
+
+    const unsubscribeOnMessage = onMessage(messaging, (payload) => {
+      console.log('[AuthContext] Foreground FCM message received:', payload);
+
+      if (payload.data && payload.data.type === 'call_cancelled') {
+        return;
+      }
+
+      // If document is not visible, show desktop notification
+      if (document.visibilityState !== 'visible' && Notification.permission === 'granted') {
+        const isCall = payload.data && payload.data.type === 'incoming_call';
+        const title = payload.notification?.title || (isCall ? 'Incoming Call' : 'New Notification');
+        const options = {
+          body: payload.notification?.body || (isCall ? 'Tap to answer call on Meetora' : ''),
+          icon: '/favicon.ico',
+          tag: isCall ? ('call-' + payload.data.callId) : undefined,
+          renotify: true,
+          requireInteraction: isCall ? true : false,
+          data: payload.data
+        };
+
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(title, options);
+          });
+        } else {
+          const notif = new Notification(title, options);
+          notif.onclick = () => {
+            window.focus();
+            notif.close();
+          };
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeOnMessage();
+    };
+  }, []);
 
   const updateUserStatus = async (user, status) => {
     if (!user) return;
