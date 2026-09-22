@@ -37,22 +37,39 @@ messaging.onBackgroundMessage((payload) => {
     data: payload.data
   };
 
+  if (isCall) {
+    notificationOptions.actions = [
+      { action: 'answer', title: 'Answer' },
+      { action: 'decline', title: 'Decline' }
+    ];
+  }
+
   self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // When user taps on the notification, focus or open the Meetora app
 self.addEventListener('notificationclick', (event) => {
+  const action = event.action || 'open';
+  const notificationData = event.notification.data || {};
   event.notification.close();
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          return client.focus();
+          return client.focus().then(() => {
+            if (action === 'answer' || action === 'decline') {
+              client.postMessage({ type: 'CALL_ACTION', action, callId: notificationData.callId });
+            }
+          });
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow('/').then((client) => {
+          if (client && (action === 'answer' || action === 'decline')) {
+            client.postMessage({ type: 'CALL_ACTION', action, callId: notificationData.callId });
+          }
+        });
       }
     })
   );

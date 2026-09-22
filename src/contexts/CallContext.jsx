@@ -74,114 +74,25 @@ export const CallProvider = ({ children }) => {
         }
 
         client = new VactClient(appId);
-        let isVactReady = false;
-        let initialIncomingCalls = [];
-
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
-          // The SDK can replay calls that were already ringing before this
-          // tab connected. Hold the initial feed until connect settles so
-          // those calls never reach the incoming-call UI.
-          if (!isVactReady) {
-            initialIncomingCalls = calls;
-            return;
-          }
+          const validIncoming = (calls || []).filter(c => c && c.fromUserId !== currentUser.uid);
 
-          // Filter out calls we've already handled locally or originating from ourselves
-          let newCalls = calls.filter(c => !hasHandledCall(c.id) && c.fromUserId !== currentUser.uid);
-          
-          if (newCalls.length === 0) {
+          if (validIncoming.length === 0) {
             if (incomingCallsRef.current.length > 0) {
-              console.log("Caller hung up or cancelled incoming call. Stopping ringtone.");
-              incomingCallsRef.current.forEach(c => addHandledCallId(c.id));
+              console.log("No active incoming calls. Stopping ringtone.");
               setIncomingCallsWithRef([]);
               stopRingtone();
             }
             return;
           }
 
-          // ASYNC CHECK: Ensure this isn't an "old ghost call" that was already concluded in the past
-          // by checking if it already exists in Firestore call_logs or ended in calls.
-          Promise.all(newCalls.map(async (c) => {
-            try {
-              const [logSnap, callSnap] = await Promise.all([
-                getDoc(doc(db, 'call_logs', c.id)),
-                getDoc(doc(db, 'calls', c.id))
-              ]);
-              if (logSnap.exists()) {
-                console.log("Filtered out global ghost call:", c.id);
-                addHandledCallId(c.id);
-                c.decline().catch(() => {});
-                return null; // Ghost call
-              }
-              if (callSnap.exists() && callSnap.data().status !== 'ringing') {
-                console.log("Filtered out already ended/cancelled call:", c.id);
-                addHandledCallId(c.id);
-                c.decline().catch(() => {});
-                return null;
-              }
-              return c; // Valid new call
-            } catch (e) {
-              return c; // If error, assume valid
-            }
-          })).then((verifiedCalls) => {
-            const validCalls = verifiedCalls.filter(Boolean);
-            if (validCalls.length === 0) {
-              if (incomingCallsRef.current.length > 0) {
-                console.log("No valid incoming calls remaining. Stopping ringtone.");
-                incomingCallsRef.current.forEach(c => addHandledCallId(c.id));
-                setIncomingCallsWithRef([]);
-                stopRingtone();
-              }
-              return;
-            }
-
-            // Auto-Accept logic for reconnection
-            const now = Date.now();
-            let finalCalls = validCalls;
-            if (recentDropRef.current && (now - recentDropRef.current.timestamp) < 15000) {
-              const reconnectCall = validCalls.find(c => c.fromUserId === recentDropRef.current.userId);
-              if (reconnectCall) {
-                console.log("Auto-accepting reconnecting call from", reconnectCall.fromUserId);
-                recentDropRef.current = null; // consume it
-                setPendingAutoAccept(reconnectCall);
-                finalCalls = validCalls.filter(c => c.id !== reconnectCall.id);
-              }
-            }
-
-            // Deduplicate calls from the SAME user (take only the first one, auto-decline the rest)
-            const seenUsers = new Set();
-            const uniqueCalls = [];
-            
-            finalCalls.forEach(incoming => {
-              if (seenUsers.has(incoming.fromUserId)) {
-                incoming.decline().catch(console.error);
-                addHandledCallId(incoming.id);
-              } else {
-                seenUsers.add(incoming.fromUserId);
-                uniqueCalls.push(incoming);
-              }
-            });
-
-            let callsToRing = [];
-            let callsToDeclineBusy = [];
-
-            if (activeCallRef.current || isTransitioningRef.current) {
-              callsToDeclineBusy = uniqueCalls;
-            } else if (uniqueCalls.length > 0) {
-              callsToRing = [uniqueCalls[0]];
-              callsToDeclineBusy = uniqueCalls.slice(1);
-            }
-
-          if (callsToDeclineBusy.length > 0) {
-            callsToDeclineBusy.forEach(incoming => {
+          // If we are already on an active call, auto-decline as busy
+          if (activeCallRef.current) {
+            validIncoming.forEach(incoming => {
               incoming.decline().catch(console.error);
-              addHandledCallId(incoming.id);
-
-              // 1. Tell the caller we are busy
               const type = incoming.video ? 'video' : 'audio';
               const threadId = [currentUser.uid, incoming.fromUserId].sort().join('_');
-              
               setDoc(doc(db, 'call_logs', incoming.id), {
                 callerId: incoming.fromUserId,
                 calleeId: currentUser.uid,
@@ -190,50 +101,21 @@ export const CallProvider = ({ children }) => {
                 durationSeconds: 0,
                 timestamp: serverTimestamp(),
               }, { merge: true }).catch(console.error);
-
-              addDoc(collection(db, 'messages'), {
-                threadId,
-                participants: [currentUser.uid, incoming.fromUserId],
-                type: 'call_log',
-                status: 'busy',
-                callType: type,
-                durationSeconds: 0,
-                senderId: incoming.fromUserId,
-                timestamp: serverTimestamp(),
-              }).catch(console.error);
-
-              // 2. Notify the receiver (current user) that they missed a call because they were busy
-              if ('Notification' in window && Notification.permission === 'granted') {
-                const notifyMissed = async () => {
-                  let name = 'Someone';
-                  try {
-                    const snap = await getDoc(doc(db, 'users', incoming.fromUserId));
-                    if (snap.exists()) name = snap.data().displayName || name;
-                  } catch (e) {}
-
-                  if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                    navigator.serviceWorker.ready.then(reg => {
-                      reg.showNotification(`Missed Call from ${name}`, {
-                        body: `${name} tried to call you while you were busy.`,
-                        icon: '/favicon.ico',
-                        tag: 'missed-busy-' + incoming.fromUserId,
-                        renotify: true
-                      });
-                    });
-                  }
-                };
-                notifyMissed();
-              }
             });
+            return;
           }
 
-          setIncomingCallsWithRef([...callsToRing]);
-          if (callsToRing.length > 0) {
-            playIncomingRingtone();
-          } else {
-            stopRingtone();
+          // Pick the first incoming call and ring immediately
+          const incomingToRing = validIncoming[0];
+
+          // Auto-decline any excess duplicate calls from others if any
+          if (validIncoming.length > 1) {
+            validIncoming.slice(1).forEach(c => c.decline().catch(() => {}));
           }
-        }).catch(console.error);
+
+          console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
+          setIncomingCallsWithRef([incomingToRing]);
+          playIncomingRingtone();
         });
 
         // Get an access token from our custom backend
@@ -279,39 +161,6 @@ export const CallProvider = ({ children }) => {
             console.error("Failed to renew token", e);
           }
         };
-
-        // Give VACT's initial event feed time to arrive, then clear all calls
-        // that existed before this page session and record them as missed.
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        const staleIncomingCalls = initialIncomingCalls;
-        isVactReady = true;
-        initialIncomingCalls = [];
-        staleIncomingCalls.forEach((incoming) => {
-          addHandledCallId(incoming.id);
-          const type = incoming.video ? 'video' : 'audio';
-          const threadId = [currentUser.uid, incoming.fromUserId].sort().join('_');
-          incoming.decline().catch(error => console.warn('Failed to clear stale call:', error));
-          setDoc(doc(db, 'call_logs', incoming.id), {
-            callerId: incoming.fromUserId,
-            calleeId: currentUser.uid,
-            status: 'missed',
-            type,
-            durationSeconds: 0,
-            timestamp: serverTimestamp(),
-          }, { merge: true }).catch(error => console.warn('Failed to record missed call:', error));
-          addDoc(collection(db, 'messages'), {
-            threadId,
-            participants: [currentUser.uid, incoming.fromUserId],
-            type: 'call_log',
-            status: 'missed',
-            callType: type,
-            durationSeconds: 0,
-            senderId: incoming.fromUserId,
-            timestamp: serverTimestamp(),
-          }).catch(error => console.warn('Failed to record missed message:', error));
-        });
-        setIncomingCallsWithRef([]);
-        stopRingtone();
 
         if (!isCancelled) {
           setVact(client);
@@ -502,24 +351,6 @@ export const CallProvider = ({ children }) => {
       throw new Error('Already on a call or transitioning');
     }
 
-    // Check if the user is online before placing a fresh call
-    if (!options.isReconnect) {
-      try {
-        const userDoc = await getDoc(doc(db, 'users', targetUserId));
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData.status === 'offline') {
-            alert('This user is currently offline.');
-            return null;
-          }
-        } else {
-          alert('This user is currently offline.');
-          return null;
-        }
-      } catch (e) {
-        console.warn('Failed to check user online status', e);
-      }
-    }
 
     // Auto-decline pending incoming calls if the user decides to place a new call instead of answering
     if (incomingCalls.length > 0) {

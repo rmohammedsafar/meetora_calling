@@ -229,23 +229,43 @@ const CallWidget = () => {
       const options = {
         body: `${callerName || 'Someone'} is calling you on Meetora`,
         icon: '/favicon.ico',
+        badge: '/favicon.svg',
         tag: tag,
         requireInteraction: true,
         renotify: true,
+        vibrate: [500, 250, 500, 250, 500],
+        data: {
+          type: 'incoming_call',
+          callId: incomingCall.id,
+          callerName: callerName || 'Someone'
+        },
         actions: [
           { action: 'answer', title: 'Answer' },
           { action: 'decline', title: 'Decline' }
         ]
       };
 
+      const showDirectNotification = () => {
+        try {
+          const notification = new Notification(title, options);
+          notification.onclick = () => {
+            window.focus();
+            notification.close();
+          };
+        } catch (error) {
+          console.warn('Desktop notification could not be shown:', error);
+        }
+      };
+
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then(registration => {
-          registration.showNotification(title, options);
-        }).catch(() => {
-          new Notification(title, options);
-        });
+        const timeout = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Service worker notification timeout')), 2000)
+        );
+        Promise.race([navigator.serviceWorker.ready, timeout])
+          .then(registration => registration.showNotification(title, options))
+          .catch(showDirectNotification);
       } else {
-        new Notification(title, options);
+        showDirectNotification();
       }
     } else {
       // Close notification if call ends or is answered
