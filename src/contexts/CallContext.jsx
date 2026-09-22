@@ -83,48 +83,66 @@ export const CallProvider = ({ children }) => {
             return;
           }
 
-          // Filter out calls we've already handled (accepted/declined) in this or previous sessions
-          let newCalls = calls.filter(c => !hasHandledCall(c.id));
+          // Filter out calls we've already handled locally or originating from ourselves
+          let newCalls = calls.filter(c => !hasHandledCall(c.id) && c.fromUserId !== currentUser.uid);
           
-          // Auto-Accept logic for reconnection
-          const now = Date.now();
-          if (recentDropRef.current && (now - recentDropRef.current.timestamp) < 15000) {
-            const reconnectCall = newCalls.find(c => c.fromUserId === recentDropRef.current.userId);
-            if (reconnectCall) {
-              console.log("Auto-accepting reconnecting call from", reconnectCall.fromUserId);
-              recentDropRef.current = null; // consume it
-              setPendingAutoAccept(reconnectCall);
-              newCalls = newCalls.filter(c => c.id !== reconnectCall.id);
+          if (newCalls.length === 0) return;
+
+          // ASYNC CHECK: Ensure this isn't an "old ghost call" that was already concluded in the past
+          // by checking if it already exists in Firestore call_logs.
+          Promise.all(newCalls.map(async (c) => {
+            try {
+              const snap = await getDoc(doc(db, 'call_logs', c.id));
+              if (snap.exists()) {
+                console.log("Filtered out global ghost call:", c.id);
+                addHandledCallId(c.id);
+                c.decline().catch(() => {});
+                return null; // Ghost call
+              }
+              return c; // Valid new call
+            } catch (e) {
+              return c; // If error, assume valid
             }
-          }
+          })).then((verifiedCalls) => {
+            const validCalls = verifiedCalls.filter(Boolean);
+            if (validCalls.length === 0) return;
 
-          // Deduplicate calls from the SAME user (take only the first one, auto-decline the rest)
-          const seenUsers = new Set();
-          const uniqueCalls = [];
-          
-          newCalls.forEach(incoming => {
-            if (seenUsers.has(incoming.fromUserId)) {
-              // This is a duplicate ghost call from the same person! Decline it instantly.
-              incoming.decline().catch(console.error);
-              addHandledCallId(incoming.id);
-            } else {
-              seenUsers.add(incoming.fromUserId);
-              uniqueCalls.push(incoming);
+            // Auto-Accept logic for reconnection
+            const now = Date.now();
+            let finalCalls = validCalls;
+            if (recentDropRef.current && (now - recentDropRef.current.timestamp) < 15000) {
+              const reconnectCall = validCalls.find(c => c.fromUserId === recentDropRef.current.userId);
+              if (reconnectCall) {
+                console.log("Auto-accepting reconnecting call from", reconnectCall.fromUserId);
+                recentDropRef.current = null; // consume it
+                setPendingAutoAccept(reconnectCall);
+                finalCalls = validCalls.filter(c => c.id !== reconnectCall.id);
+              }
             }
-          });
 
-          let callsToRing = [];
-          let callsToDeclineBusy = [];
+            // Deduplicate calls from the SAME user (take only the first one, auto-decline the rest)
+            const seenUsers = new Set();
+            const uniqueCalls = [];
+            
+            finalCalls.forEach(incoming => {
+              if (seenUsers.has(incoming.fromUserId)) {
+                incoming.decline().catch(console.error);
+                addHandledCallId(incoming.id);
+              } else {
+                seenUsers.add(incoming.fromUserId);
+                uniqueCalls.push(incoming);
+              }
+            });
 
-          if (activeCallRef.current || isTransitioningRef.current) {
-            // User is on an active connected call OR currently placing a call, auto-decline ALL new incoming calls
-            callsToDeclineBusy = uniqueCalls;
-          } else if (uniqueCalls.length > 0) {
-            // User is NOT on a connected call, but multiple people might be calling simultaneously.
-            // Allow only the FIRST one to ring, instantly decline the rest as busy.
-            callsToRing = [uniqueCalls[0]];
-            callsToDeclineBusy = uniqueCalls.slice(1);
-          }
+            let callsToRing = [];
+            let callsToDeclineBusy = [];
+
+            if (activeCallRef.current || isTransitioningRef.current) {
+              callsToDeclineBusy = uniqueCalls;
+            } else if (uniqueCalls.length > 0) {
+              callsToRing = [uniqueCalls[0]];
+              callsToDeclineBusy = uniqueCalls.slice(1);
+            }
 
           if (callsToDeclineBusy.length > 0) {
             callsToDeclineBusy.forEach(incoming => {
@@ -186,6 +204,7 @@ export const CallProvider = ({ children }) => {
           } else {
             stopRingtone();
           }
+        }).catch(console.error);
         });
 
         // Get an access token from our custom backend
