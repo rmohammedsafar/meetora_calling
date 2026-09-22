@@ -185,18 +185,6 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    const handleFocus = () => {
-      if (currentUser) {
-        updateUserStatus(currentUser, 'online');
-      }
-    };
-
-    const handleBlur = () => {
-      if (currentUser) {
-        updateUserStatus(currentUser, 'away');
-      }
-    };
-
     const handleBeforeUnload = () => {
       if (currentUser) {
         updateUserStatus(currentUser, 'offline');
@@ -204,14 +192,10 @@ export const AuthProvider = ({ children }) => {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [currentUser]);
