@@ -257,7 +257,13 @@ const CallWidget = () => {
         }
       };
 
-      if ('serviceWorker' in navigator) {
+      // A visible desktop tab should use the browser Notification API
+      // directly. This avoids waiting on Firebase's worker and is the most
+      // reliable path for laptop notifications. Use the service worker when
+      // the tab is hidden so the notification can stay actionable.
+      if (document.visibilityState === 'visible') {
+        showDirectNotification();
+      } else if ('serviceWorker' in navigator) {
         const timeout = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Service worker notification timeout')), 2000)
         );
