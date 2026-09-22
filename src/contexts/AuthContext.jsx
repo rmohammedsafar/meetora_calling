@@ -8,9 +8,10 @@ import {
   signOut,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, updateDoc, arrayUnion } from 'firebase/firestore';
 import { ref, set, onDisconnect, serverTimestamp as rtdbServerTimestamp, onValue } from 'firebase/database';
-import { auth, db, rtdb } from '../firebase';
+import { getToken } from 'firebase/messaging';
+import { auth, db, rtdb, messaging } from '../firebase';
 
 const AuthContext = createContext();
 
@@ -42,6 +43,26 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error("Error saving user to Firestore (check your Firebase Rules!):", error);
+    }
+  };
+
+  const registerFCMToken = async (user) => {
+    try {
+      if (!('Notification' in window)) return;
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        const currentToken = await getToken(messaging, { 
+          vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY 
+        });
+        if (currentToken) {
+          const userRef = doc(db, 'users', user.uid);
+          await updateDoc(userRef, {
+            fcmTokens: arrayUnion(currentToken)
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error registering FCM token:", error);
     }
   };
 
@@ -112,6 +133,7 @@ export const AuthProvider = ({ children }) => {
       if (user) {
         // Do not await this to avoid race conditions with rapid auth state changes
         saveUserToFirestore(user).catch(e => console.error("Error saving user", e));
+        registerFCMToken(user);
         
         // Setup RTDB Presence
         const myStatusRef = ref(rtdb, `/status/${user.uid}`);
