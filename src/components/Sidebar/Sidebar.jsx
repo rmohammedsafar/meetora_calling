@@ -1,13 +1,12 @@
 import { NavLink } from 'react-router-dom';
 import { Video, Home, Calendar, Users, MessageSquare, Settings, HelpCircle, Phone } from 'lucide-react';
-import Logo from '../Logo/Logo';
 import './Sidebar.css';
 
 const Sidebar = () => {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo-container">
-        <Logo size="small" className="logo-white-mode" />
+        {/* Logo removed */}
       </div>
 
       <nav className="sidebar-nav">

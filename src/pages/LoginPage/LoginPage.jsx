@@ -67,10 +67,7 @@ const LoginPage = () => {
         <div className="signup-left-content">
           <div className="brand-header">
             <div className="brand-logo-m">
-              <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 80 L35 40 L50 70 L65 40 L80 80" stroke="#3b82f6" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M20 80 L35 40 L50 70" stroke="#60a5fa" strokeWidth="16" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              {/* Logo removed */}
             </div>
             <span className="brand-name">Meetora</span>
           </div>

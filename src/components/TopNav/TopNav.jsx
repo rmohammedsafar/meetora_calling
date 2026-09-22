@@ -1,15 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import Button from '../Button/Button';
-import Logo from '../Logo/Logo';
 import './TopNav.css';
-
 const TopNav = () => {
   return (
     <nav className="topnav-container">
       <div className="topnav-content">
         <Link to="/" className="topnav-logo-link">
-          <Logo size="medium" />
+          {/* Logo removed */}
         </Link>
         
         <ul className="topnav-links">
