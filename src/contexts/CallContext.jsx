@@ -82,7 +82,11 @@ export const CallProvider = ({ children }) => {
           // Cleanup can run while token exchange or event polling is pending.
           // An obsolete client must never clear the current client's popup.
           if (isCancelled) return;
-          const validIncoming = (calls || []).filter(c => c && c.fromUserId !== currentUser.uid);
+          const validIncoming = (calls || []).filter(c =>
+            c &&
+            c.fromUserId !== currentUser.uid &&
+            !hasHandledCall(c.id)
+          );
 
           // VACT replays every call that was already ringing when this
           // session connects. Keep those calls out of the UI; they belong to
@@ -104,6 +108,7 @@ export const CallProvider = ({ children }) => {
           // If we are already on an active call, auto-decline as busy
           if (activeCallRef.current) {
             validIncoming.forEach(incoming => {
+              addHandledCallId(incoming.id);
               incoming.decline().catch(console.error);
               const type = incoming.video ? 'video' : 'audio';
               const threadId = [currentUser.uid, incoming.fromUserId].sort().join('_');
@@ -122,9 +127,18 @@ export const CallProvider = ({ children }) => {
           // Pick the first incoming call and ring immediately
           const incomingToRing = validIncoming[0];
 
+          // VACT may emit the same ringing set repeatedly while the call is
+          // waiting. Keep the existing popup and ringtone for that same ID.
+          if (incomingCallsRef.current[0]?.id === incomingToRing.id) {
+            return;
+          }
+
           // Auto-decline any excess duplicate calls from others if any
           if (validIncoming.length > 1) {
-            validIncoming.slice(1).forEach(c => c.decline().catch(() => {}));
+            validIncoming.slice(1).forEach(c => {
+              addHandledCallId(c.id);
+              c.decline().catch(() => {});
+            });
           }
 
           console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
@@ -162,6 +176,10 @@ export const CallProvider = ({ children }) => {
         // Allow the initial VACT event feed to settle before accepting new
         // calls. Any calls found during this window are stale and are closed.
         await new Promise(resolve => setTimeout(resolve, 5000));
+        if (isCancelled) {
+          client.disconnect();
+          return;
+        }
         for (const incoming of startupIncomingCalls.values()) {
           addHandledCallId(incoming.id);
           incoming.decline().catch(error => {
@@ -421,7 +439,11 @@ export const CallProvider = ({ children }) => {
   const acceptCall = async (incomingCall) => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
+    // Mark it before the asynchronous SDK accept so a repeated event cannot
+    // put the same ringing call back into the popup during the transition.
+    addHandledCallId(incomingCall.id);
     stopRingtone();
+    setIncomingCallsWithRef(prev => prev.filter(c => c.id !== incomingCall.id));
     try {
       const call = await incomingCall.accept({ video: incomingCall.video, audio: true });
       
@@ -437,8 +459,6 @@ export const CallProvider = ({ children }) => {
           addHandledCallId(c.id);
         }
       });
-      addHandledCallId(incomingCall.id);
-
       handleCallDisconnect(call);
       setActiveCall(call);
       return call;
@@ -452,6 +472,7 @@ export const CallProvider = ({ children }) => {
 
   // Helper to decline a call
   const declineCall = async (incomingCall) => {
+    addHandledCallId(incomingCall.id);
     stopRingtone();
     try {
       await incomingCall.decline();
@@ -492,8 +513,6 @@ export const CallProvider = ({ children }) => {
           addHandledCallId(c.id);
         }
       });
-      addHandledCallId(incomingCall.id);
-      
       setIncomingCallsWithRef(prev => prev.filter(c => c.id !== incomingCall.id));
     } catch (error) {
       console.error('Failed to decline call:', error);
