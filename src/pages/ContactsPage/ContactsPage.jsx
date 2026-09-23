@@ -244,12 +244,12 @@ const ContactsPage = () => {
                 <div className="contact-details">
                   <span className="contact-name">{user.displayName || (user.email ? user.email.split('@')[0] : 'User')}</span>
                   <span className="contact-email">{user.email || 'No email'}</span>
-                  <span style={{ fontSize: '12px', color: user.status === 'online' ? '#10b981' : user.status === 'away' ? '#f59e0b' : 'var(--text-muted)' }}>
-                    {formatLastSeen(user.status, user.lastSeen)}
+                  <span style={{ fontSize: '12px', color: user.callStatus === 'busy' ? '#ef4444' : user.status === 'online' ? '#10b981' : user.status === 'away' ? '#f59e0b' : 'var(--text-muted)' }}>
+                    {user.callStatus === 'busy' ? 'On a call' : formatLastSeen(user.status, user.lastSeen)}
                   </span>
                 </div>
               </div>
-              {!isCallInProgress && <div className="contact-actions" style={{ display: 'flex', gap: '8px' }}>
+              {!isCallInProgress && user.callStatus !== 'busy' && <div className="contact-actions" style={{ display: 'flex', gap: '8px' }}>
                 <button
                   className={`action-btn call-btn audio-btn ${callingId === user.id && callingType === 'audio' ? 'calling' : ''}`}
                   onClick={() => handleCall(user.id || user.uid, false)}

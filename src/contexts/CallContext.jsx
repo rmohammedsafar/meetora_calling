@@ -47,6 +47,10 @@ export const CallProvider = ({ children }) => {
     localStorage.setItem(handledCallStorageKey, JSON.stringify(idsArray));
   };
   const hasHandledCall = (id) => getHandledCallIds().has(id);
+  const setUserCallStatus = (status) => {
+    if (!currentUser) return;
+    setDoc(doc(db, 'users', currentUser.uid), { callStatus: status }, { merge: true }).catch(() => {});
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -407,10 +411,11 @@ export const CallProvider = ({ children }) => {
             endedAt: serverTimestamp()
           }).catch(() => {});
 
-          setActiveCall(null);
-          setCallState('idle');
-          localStorage.removeItem('meetora:call-busy');
-        }
+      setActiveCall(null);
+      setCallState('idle');
+      localStorage.removeItem('meetora:call-busy');
+      setUserCallStatus('available');
+    }
       };
     }
   };
@@ -435,6 +440,7 @@ export const CallProvider = ({ children }) => {
 
     isTransitioningRef.current = true;
     localStorage.setItem('meetora:call-busy', 'true');
+    setUserCallStatus('busy');
     let callStarted = false;
     try {
       const call = await vact.call(targetUserId, options);
@@ -460,7 +466,10 @@ export const CallProvider = ({ children }) => {
       throw error;
     } finally {
       isTransitioningRef.current = false;
-      if (!callStarted) localStorage.removeItem('meetora:call-busy');
+      if (!callStarted) {
+        localStorage.removeItem('meetora:call-busy');
+        setUserCallStatus('available');
+      }
     }
   };
 
@@ -491,6 +500,7 @@ export const CallProvider = ({ children }) => {
       handleCallDisconnect(call);
       setActiveCall(call);
       localStorage.setItem('meetora:call-busy', 'true');
+      setUserCallStatus('busy');
       return call;
     } catch (error) {
       console.error('Failed to accept call:', error);
@@ -572,9 +582,10 @@ export const CallProvider = ({ children }) => {
           activeCall.end();
         }
       }
-      setActiveCall(null);
-      setCallState('idle');
-      localStorage.removeItem('meetora:call-busy');
+          setActiveCall(null);
+          setCallState('idle');
+          localStorage.removeItem('meetora:call-busy');
+          setUserCallStatus('available');
     }
   };
 
