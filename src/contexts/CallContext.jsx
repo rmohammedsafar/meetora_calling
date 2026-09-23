@@ -142,14 +142,6 @@ export const CallProvider = ({ children }) => {
             return;
           }
 
-          // Auto-decline any excess duplicate calls from others if any
-          if (validIncoming.length > 1) {
-            validIncoming.slice(1).forEach(c => {
-              addHandledCallId(c.id);
-              c.decline().catch(() => {});
-            });
-          }
-
           // VACT can deliver an old event after the startup quarantine. Use
           // the Firestore call timestamp as a second server-side age check
           // before showing the in-page popup.
@@ -173,7 +165,9 @@ export const CallProvider = ({ children }) => {
                 return;
               }
               console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
-              setIncomingCallsWithRef([incomingToRing]);
+              // Keep simultaneous calls available for notification actions;
+              // the UI still presents the first one.
+              setIncomingCallsWithRef(validIncoming);
               playIncomingRingtone();
             } catch (error) {
               // Fail closed: an unverified event must never become a ghost
