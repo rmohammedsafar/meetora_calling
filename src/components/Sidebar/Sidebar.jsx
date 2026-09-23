@@ -1,8 +1,21 @@
-import { NavLink } from 'react-router-dom';
-import { Video, Home, Calendar, Users, MessageSquare, Settings, HelpCircle, Phone } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { Home, Users, MessageSquare, Settings, HelpCircle, Phone, LogOut } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import './Sidebar.css';
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login', { replace: true });
+    } catch (error) {
+      console.error('Failed to log out:', error);
+    }
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar-logo-container">
@@ -26,6 +39,10 @@ const Sidebar = () => {
           <MessageSquare size={20} />
           <span>Messages</span>
         </NavLink>
+        <button type="button" className="sidebar-link sidebar-logout mobile-logout" onClick={handleLogout}>
+          <LogOut size={20} />
+          <span>Logout</span>
+        </button>
       </nav>
 
       <div className="sidebar-bottom">
@@ -37,6 +54,10 @@ const Sidebar = () => {
           <HelpCircle size={20} />
           <span>Help & Support</span>
         </NavLink>
+        <button type="button" className="sidebar-link sidebar-logout" onClick={handleLogout}>
+          <LogOut size={20} />
+          <span>Logout</span>
+        </button>
       </div>
     </aside>
   );

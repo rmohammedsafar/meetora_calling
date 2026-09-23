@@ -173,6 +173,14 @@ export const CallProvider = ({ children }) => {
           throw new Error('connect() failed! AppID: ' + appId + ' | Token: ' + accessToken + ' | Reason: ' + connErr.message);
         }
 
+        // The VACT session is connected now. Do not make the UI wait for the
+        // separate startup-call cleanup window below.
+        if (!isCancelled) {
+          setVact(client);
+          setIsVactConnected(true);
+          console.log('Successfully connected to VACT as', currentUser.uid);
+        }
+
         // Allow the initial VACT event feed to settle before accepting new
         // calls. Any calls found during this window are stale and are closed.
         await new Promise(resolve => setTimeout(resolve, 5000));
@@ -209,10 +217,6 @@ export const CallProvider = ({ children }) => {
         };
 
         if (!isCancelled) {
-          setVact(client);
-          setIsVactConnected(true);
-          console.log('Successfully connected to VACT as', currentUser.uid);
-
           // Check for reconnect
           const reconnectPayload = sessionStorage.getItem('meetora:reconnect_call');
           if (reconnectPayload) {
