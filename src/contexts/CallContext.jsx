@@ -89,7 +89,16 @@ export const CallProvider = ({ children }) => {
           // session connects. Keep those calls out of the UI; they belong to
           // the previous page session and are ghost calls after a reload.
           if (!incomingReady) {
-            validIncoming.forEach(call => startupIncomingCalls.set(call.id, call));
+            validIncoming.forEach(call => {
+              if (startupIncomingCalls.has(call.id)) return;
+              startupIncomingCalls.set(call.id, call);
+              // Decline stale server-side ringing immediately. Waiting for
+              // the quarantine timer allows VACT to replay the ghost call.
+              addHandledCallId(call.id);
+              call.decline().catch(error => {
+                console.warn('Failed to clear startup ghost call:', error);
+              });
+            });
             return;
           }
 
@@ -187,9 +196,6 @@ export const CallProvider = ({ children }) => {
         }
         for (const incoming of startupIncomingCalls.values()) {
           addHandledCallId(incoming.id);
-          incoming.decline().catch(error => {
-            console.warn('Failed to clear startup ghost call:', error);
-          });
         }
         startupIncomingCalls.clear();
         incomingReady = true;
