@@ -215,6 +215,7 @@ const CallWidget = () => {
   // Reference to hold active notification tag to close it manually if needed
   const activeNotificationTag = useRef(null);
   const directNotificationRef = useRef(null);
+  const pendingNotificationActionRef = useRef(null);
 
   // Trigger Browser Notification for Incoming Calls
   useEffect(() => {
@@ -313,6 +314,8 @@ const CallWidget = () => {
           } else if (event.data.action === 'decline') {
             declineCall(call);
           }
+        } else {
+          pendingNotificationActionRef.current = event.data;
         }
       }
     };
@@ -326,6 +329,23 @@ const CallWidget = () => {
         navigator.serviceWorker.removeEventListener('message', handleSWMessage);
       }
     };
+  }, [incomingCalls, acceptCall, declineCall]);
+
+  // A notification action can arrive just before VACT publishes the call
+  // object to React. Apply the queued action when that object becomes ready.
+  useEffect(() => {
+    const pending = pendingNotificationActionRef.current;
+    if (!pending || incomingCalls.length === 0) return;
+
+    const call = incomingCalls.find(c => c.id === pending.callId);
+    if (!call) return;
+
+    pendingNotificationActionRef.current = null;
+    if (pending.action === 'answer') {
+      acceptCall(call);
+    } else if (pending.action === 'decline') {
+      declineCall(call);
+    }
   }, [incomingCalls, acceptCall, declineCall]);
 
   const toggleMute = () => {
