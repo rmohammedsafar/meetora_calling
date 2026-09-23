@@ -24,6 +24,7 @@ const ContactsPage = () => {
 
   const { currentUser } = useAuth();
   const { placeCall, callState } = useCall();
+  const isCallInProgress = callingId !== null || callState !== 'idle';
 
   useEffect(() => {
     // VACT docs: Request permissions BEFORE a call to prevent the popup from breaking WebRTC timing
@@ -248,7 +249,7 @@ const ContactsPage = () => {
                   </span>
                 </div>
               </div>
-              <div className="contact-actions" style={{ display: 'flex', gap: '8px' }}>
+              {!isCallInProgress && <div className="contact-actions" style={{ display: 'flex', gap: '8px' }}>
                 <button
                   className={`action-btn call-btn audio-btn ${callingId === user.id && callingType === 'audio' ? 'calling' : ''}`}
                   onClick={() => handleCall(user.id || user.uid, false)}
@@ -275,7 +276,7 @@ const ContactsPage = () => {
                     <Video size={18} color="white" />
                   )}
                 </button>
-              </div>
+              </div>}
             </div>
           ))
         ) : (
