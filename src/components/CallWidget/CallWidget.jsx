@@ -217,6 +217,18 @@ const CallWidget = () => {
   const directNotificationRef = useRef(null);
   const pendingNotificationActionRef = useRef(null);
 
+  // A service-worker click can open a new tab before React/VACT has published
+  // the incoming call. Preserve the action in memory until that call appears.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('callAction');
+    const callId = params.get('callId');
+    if ((action === 'answer' || action === 'decline') && callId) {
+      pendingNotificationActionRef.current = { type: 'CALL_ACTION', action, callId };
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
+    }
+  }, []);
+
   // Trigger Browser Notification for Incoming Calls
   useEffect(() => {
     let cancelled = false;

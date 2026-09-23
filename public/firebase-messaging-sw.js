@@ -65,7 +65,10 @@ self.addEventListener('notificationclick', (event) => {
         }
       }
       if (clients.openWindow) {
-        return clients.openWindow('/').then((client) => {
+        const actionUrl = (action === 'answer' || action === 'decline')
+          ? `/?callAction=${encodeURIComponent(action)}&callId=${encodeURIComponent(notificationData.callId || '')}`
+          : '/';
+        return clients.openWindow(actionUrl).then((client) => {
           if (client && (action === 'answer' || action === 'decline')) {
             client.postMessage({ type: 'CALL_ACTION', action, callId: notificationData.callId });
           }
