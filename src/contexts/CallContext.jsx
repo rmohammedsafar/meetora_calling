@@ -157,7 +157,7 @@ export const CallProvider = ({ children }) => {
               // The caller writes Firestore immediately after VACT creates the
               // call. Allow a short propagation window, but never show an
               // incoming call with no verified Firestore record.
-              if (!callSnap.exists()) {
+              for (let attempt = 0; attempt < 5 && !callSnap.exists(); attempt += 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 callSnap = await getDoc(doc(db, 'calls', incomingToRing.id));
               }
