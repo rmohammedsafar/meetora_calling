@@ -99,6 +99,11 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (payload.data && payload.data.type === 'incoming_call') {
+        // Do not notify while this browser is already placing or handling
+        // another call. CallContext sets this flag before VACT starts.
+        if (localStorage.getItem('meetora:call-busy') === 'true') {
+          return;
+        }
         if (Notification.permission === 'granted') {
           const title = payload.notification?.title || 'Incoming Voice Call';
           const options = {

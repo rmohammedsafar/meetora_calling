@@ -112,8 +112,10 @@ export const CallProvider = ({ children }) => {
             return;
           }
 
-          // If we are already on an active call, auto-decline as busy
-          if (activeCallRef.current) {
+          // If we are already on a call or currently placing one, auto-decline
+          // incoming calls as busy. The transition check closes the race
+          // before React updates activeCallRef after vact.call().
+          if (activeCallRef.current || isTransitioningRef.current) {
             validIncoming.forEach(incoming => {
               addHandledCallId(incoming.id);
               incoming.decline().catch(console.error);
@@ -406,6 +408,7 @@ export const CallProvider = ({ children }) => {
 
           setActiveCall(null);
           setCallState('idle');
+          localStorage.removeItem('meetora:call-busy');
         }
       };
     }
@@ -430,8 +433,11 @@ export const CallProvider = ({ children }) => {
     }
 
     isTransitioningRef.current = true;
+    localStorage.setItem('meetora:call-busy', 'true');
+    let callStarted = false;
     try {
       const call = await vact.call(targetUserId, options);
+      callStarted = true;
       
       // Save active call in Firestore: triggers FCM push and enables instant cancellation sync
       setDoc(doc(db, 'calls', call.id), {
@@ -453,6 +459,7 @@ export const CallProvider = ({ children }) => {
       throw error;
     } finally {
       isTransitioningRef.current = false;
+      if (!callStarted) localStorage.removeItem('meetora:call-busy');
     }
   };
 
@@ -482,6 +489,7 @@ export const CallProvider = ({ children }) => {
       });
       handleCallDisconnect(call);
       setActiveCall(call);
+      localStorage.setItem('meetora:call-busy', 'true');
       return call;
     } catch (error) {
       console.error('Failed to accept call:', error);
@@ -565,6 +573,7 @@ export const CallProvider = ({ children }) => {
       }
       setActiveCall(null);
       setCallState('idle');
+      localStorage.removeItem('meetora:call-busy');
     }
   };
 
