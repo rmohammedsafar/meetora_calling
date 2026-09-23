@@ -162,6 +162,13 @@ export const CallProvider = ({ children }) => {
               if (!data || data.status !== 'ringing' || isStale) {
                 addHandledCallId(incomingToRing.id);
                 incomingToRing.decline().catch(() => {});
+                const remainingCalls = validIncoming.filter(call => call.id !== incomingToRing.id);
+                if (remainingCalls.length > 0 && !isCancelled) {
+                  // Another simultaneous call may still be valid. Keep it
+                  // available so its notification Answer action can work.
+                  setIncomingCallsWithRef(remainingCalls);
+                  playIncomingRingtone();
+                }
                 return;
               }
               console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
