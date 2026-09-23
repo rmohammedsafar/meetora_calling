@@ -76,8 +76,8 @@ export const CallProvider = ({ children }) => {
 
         client = new VactClient(appId);
         const sessionStartedAt = Date.now();
-        let incomingReady = false;
-        const startupIncomingCalls = new Map();
+        // Firestore timestamp/status validation below handles stale VACT
+        // events, so new calls do not need to wait through a startup timer.
 
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
@@ -93,20 +93,6 @@ export const CallProvider = ({ children }) => {
           // VACT replays every call that was already ringing when this
           // session connects. Keep those calls out of the UI; they belong to
           // the previous page session and are ghost calls after a reload.
-          if (!incomingReady) {
-            validIncoming.forEach(call => {
-              if (startupIncomingCalls.has(call.id)) return;
-              startupIncomingCalls.set(call.id, call);
-              // Decline stale server-side ringing immediately. Waiting for
-              // the quarantine timer allows VACT to replay the ghost call.
-              addHandledCallId(call.id);
-              call.decline().catch(error => {
-                console.warn('Failed to clear startup ghost call:', error);
-              });
-            });
-            return;
-          }
-
           if (validIncoming.length === 0) {
             if (incomingCallsRef.current.length > 0) {
               console.log("No active incoming calls. Stopping ringtone.");
@@ -224,19 +210,6 @@ export const CallProvider = ({ children }) => {
           setIsVactConnected(true);
           console.log('Successfully connected to VACT as', currentUser.uid);
         }
-
-        // Allow the initial VACT event feed to settle before accepting new
-        // calls. Any calls found during this window are stale and are closed.
-        await new Promise(resolve => setTimeout(resolve, 5000));
-        if (isCancelled) {
-          client.disconnect();
-          return;
-        }
-        for (const incoming of startupIncomingCalls.values()) {
-          addHandledCallId(incoming.id);
-        }
-        startupIncomingCalls.clear();
-        incomingReady = true;
 
         // Handle token expiration automatically
         client.onSessionExpired = async () => {
