@@ -151,25 +151,36 @@ export const CallProvider = ({ children }) => {
           // VACT can deliver an old event after the startup quarantine. Use
           // the Firestore call timestamp as a second server-side age check
           // before showing the in-page popup.
-          getDoc(doc(db, 'calls', incomingToRing.id)).then(callSnap => {
-            if (isCancelled || hasHandledCall(incomingToRing.id)) return;
-            const createdAt = callSnap.exists() ? callSnap.data().createdAt : null;
-            if (createdAt?.toMillis && createdAt.toMillis() < sessionStartedAt) {
-              addHandledCallId(incomingToRing.id);
-              incomingToRing.decline().catch(() => {});
-              return;
-            }
-            console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
-            setIncomingCallsWithRef([incomingToRing]);
-            playIncomingRingtone();
-          }).catch(() => {
-            // Keep calls without a readable Firestore record usable; VACT is
-            // still the authoritative source for the live call itself.
-            if (!isCancelled && !hasHandledCall(incomingToRing.id)) {
+          const verifyAndShowIncoming = async () => {
+            try {
+              let callSnap = await getDoc(doc(db, 'calls', incomingToRing.id));
+              // The caller writes Firestore immediately after VACT creates the
+              // call. Allow a short propagation window, but never show an
+              // incoming call with no verified Firestore record.
+              if (!callSnap.exists()) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                callSnap = await getDoc(doc(db, 'calls', incomingToRing.id));
+              }
+              if (isCancelled || hasHandledCall(incomingToRing.id)) return;
+              const data = callSnap.exists() ? callSnap.data() : null;
+              const createdAt = data?.createdAt;
+              const isStale = createdAt?.toMillis && createdAt.toMillis() < sessionStartedAt;
+              if (!data || data.status !== 'ringing' || isStale) {
+                addHandledCallId(incomingToRing.id);
+                incomingToRing.decline().catch(() => {});
+                return;
+              }
+              console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
               setIncomingCallsWithRef([incomingToRing]);
               playIncomingRingtone();
+            } catch (error) {
+              // Fail closed: an unverified event must never become a ghost
+              // popup. The caller can place a fresh call if needed.
+              addHandledCallId(incomingToRing.id);
+              incomingToRing.decline().catch(() => {});
             }
-          });
+          };
+          verifyAndShowIncoming();
         });
 
         // Get an access token from our custom backend
