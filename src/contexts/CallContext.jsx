@@ -71,6 +71,7 @@ export const CallProvider = ({ children }) => {
         }
 
         client = new VactClient(appId);
+        const sessionStartedAt = Date.now();
         let incomingReady = false;
         const startupIncomingCalls = new Map();
 
@@ -147,9 +148,28 @@ export const CallProvider = ({ children }) => {
             });
           }
 
-          console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
-          setIncomingCallsWithRef([incomingToRing]);
-          playIncomingRingtone();
+          // VACT can deliver an old event after the startup quarantine. Use
+          // the Firestore call timestamp as a second server-side age check
+          // before showing the in-page popup.
+          getDoc(doc(db, 'calls', incomingToRing.id)).then(callSnap => {
+            if (isCancelled || hasHandledCall(incomingToRing.id)) return;
+            const createdAt = callSnap.exists() ? callSnap.data().createdAt : null;
+            if (createdAt?.toMillis && createdAt.toMillis() < sessionStartedAt) {
+              addHandledCallId(incomingToRing.id);
+              incomingToRing.decline().catch(() => {});
+              return;
+            }
+            console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
+            setIncomingCallsWithRef([incomingToRing]);
+            playIncomingRingtone();
+          }).catch(() => {
+            // Keep calls without a readable Firestore record usable; VACT is
+            // still the authoritative source for the live call itself.
+            if (!isCancelled && !hasHandledCall(incomingToRing.id)) {
+              setIncomingCallsWithRef([incomingToRing]);
+              playIncomingRingtone();
+            }
+          });
         });
 
         // Get an access token from our custom backend

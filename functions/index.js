@@ -126,9 +126,14 @@ exports.onCallCreate = onDocumentCreated("calls/{callId}", async (event) => {
 
     const response = await admin.messaging().sendEachForMulticast({
       tokens: tokens,
-      notification: payload.notification,
       data: payload.data,
-      webpush: payload.webpush
+      // Send data-only for calls. The service worker owns rendering the
+      // notification; including notification/webpush display fields here
+      // makes FCM render one notification automatically and the worker render
+      // a second one.
+      webpush: {
+        headers: payload.webpush.headers
+      }
     });
 
     const tokensToRemove = [];
