@@ -98,6 +98,27 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
+      if (payload.data && payload.data.type === 'incoming_call') {
+        if (Notification.permission === 'granted') {
+          const title = payload.notification?.title || 'Incoming Voice Call';
+          const options = {
+            body: payload.notification?.body || 'Someone is calling you on Meetora',
+            icon: '/favicon.ico',
+            badge: '/favicon.ico',
+            tag: 'call-' + payload.data.callId,
+            requireInteraction: true,
+            renotify: true,
+            data: payload.data,
+            actions: [
+              { action: 'answer', title: 'Answer' },
+              { action: 'decline', title: 'Decline' }
+            ]
+          };
+          navigator.serviceWorker.ready.then(reg => reg.showNotification(title, options));
+        }
+        return;
+      }
+
       // If document is not visible, show desktop notification
       if (document.visibilityState !== 'visible' && Notification.permission === 'granted') {
         const isCall = payload.data && payload.data.type === 'incoming_call';

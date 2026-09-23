@@ -216,6 +216,9 @@ const CallWidget = () => {
   const activeNotificationTag = useRef(null);
   const directNotificationRef = useRef(null);
   const pendingNotificationActionRef = useRef(null);
+  // FCM is the single owner of browser call notifications. This component
+  // still renders the in-page call UI and handles notification actions.
+  const fcmOwnsCallNotifications = true;
 
   // A service-worker click can open a new tab before React/VACT has published
   // the incoming call. Preserve the action in memory until that call appears.
@@ -233,7 +236,7 @@ const CallWidget = () => {
   useEffect(() => {
     let cancelled = false;
     let workerTimer;
-    if (incomingCalls.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
+    if (!fcmOwnsCallNotifications && incomingCalls.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
       const incomingCall = incomingCalls[0];
       const isVideo = incomingCall.video;
       // Use the call ID as the tag so the browser updates the existing notification 
