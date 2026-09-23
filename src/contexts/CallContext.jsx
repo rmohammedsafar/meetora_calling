@@ -74,12 +74,23 @@ export const CallProvider = ({ children }) => {
         }
 
         client = new VactClient(appId);
+        let incomingReady = false;
+        const startupIncomingCalls = new Map();
+
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
           // Cleanup can run while token exchange or event polling is pending.
           // An obsolete client must never clear the current client's popup.
           if (isCancelled) return;
           const validIncoming = (calls || []).filter(c => c && c.fromUserId !== currentUser.uid);
+
+          // VACT replays every call that was already ringing when this
+          // session connects. Keep those calls out of the UI; they belong to
+          // the previous page session and are ghost calls after a reload.
+          if (!incomingReady) {
+            validIncoming.forEach(call => startupIncomingCalls.set(call.id, call));
+            return;
+          }
 
           if (validIncoming.length === 0) {
             if (incomingCallsRef.current.length > 0) {
@@ -147,6 +158,18 @@ export const CallProvider = ({ children }) => {
         } catch (connErr) {
           throw new Error('connect() failed! AppID: ' + appId + ' | Token: ' + accessToken + ' | Reason: ' + connErr.message);
         }
+
+        // Allow the initial VACT event feed to settle before accepting new
+        // calls. Any calls found during this window are stale and are closed.
+        await new Promise(resolve => setTimeout(resolve, 5000));
+        for (const incoming of startupIncomingCalls.values()) {
+          addHandledCallId(incoming.id);
+          incoming.decline().catch(error => {
+            console.warn('Failed to clear startup ghost call:', error);
+          });
+        }
+        startupIncomingCalls.clear();
+        incomingReady = true;
 
         // Handle token expiration automatically
         client.onSessionExpired = async () => {
