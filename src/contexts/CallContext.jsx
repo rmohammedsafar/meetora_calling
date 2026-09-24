@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
-import { VactClient } from '@firstlogicmetalab/client';
+import { VactClient } from '../utils/vactClient';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
 import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
