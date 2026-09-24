@@ -20,18 +20,17 @@ messaging.onBackgroundMessage((payload) => {
   // If the caller cancelled the call, dismiss the notification automatically
   if (payload.data && payload.data.type === 'call_cancelled') {
     const callTag = 'call-' + payload.data.callId;
-    self.registration.getNotifications({ tag: callTag }).then((notifications) => {
+    return self.registration.getNotifications({ tag: callTag }).then((notifications) => {
       notifications.forEach(n => n.close());
     });
-    return;
   }
 
   const isCall = payload.data && payload.data.type === 'incoming_call';
   const notificationTitle = payload.notification?.title || (isCall ? 'Incoming Call' : 'New Notification');
   const notificationOptions = {
     body: payload.notification?.body || (isCall ? 'Tap to answer call on Meetora' : ''),
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/favicon.svg',
+    badge: '/favicon.svg',
     tag: isCall ? ('call-' + payload.data.callId) : undefined,
     renotify: true,
     requireInteraction: isCall ? true : false,
@@ -46,7 +45,8 @@ messaging.onBackgroundMessage((payload) => {
     ];
   }
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  // Firebase awaits this promise to keep the push event alive on mobile.
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // When user taps on the notification, focus or open the Meetora app
