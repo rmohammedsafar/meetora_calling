@@ -59,7 +59,12 @@ self.addEventListener('notificationclick', (event) => {
         if ('focus' in client) {
           return client.focus().then(() => {
             if (action === 'answer' || action === 'decline') {
-              client.postMessage({ type: 'CALL_ACTION', action, callId: notificationData.callId });
+              const message = { type: 'CALL_ACTION', action, callId: notificationData.callId };
+              // Mobile Chrome may resume the page after focus. Send once now
+              // and once shortly after React has had time to attach its
+              // service-worker message listener.
+              client.postMessage(message);
+              setTimeout(() => client.postMessage(message), 1000);
             }
           });
         }
