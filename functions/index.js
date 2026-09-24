@@ -119,7 +119,11 @@ exports.onCallCreate = onDocumentCreated("calls/{callId}", async (event) => {
         notification: {
           requireInteraction: true,
           tag: `call-${event.params.callId}`,
-          renotify: true
+          renotify: false,
+          actions: [
+            { action: 'answer', title: 'Answer' },
+            { action: 'decline', title: 'Decline' }
+          ]
         }
       }
     };
@@ -127,13 +131,8 @@ exports.onCallCreate = onDocumentCreated("calls/{callId}", async (event) => {
     const response = await admin.messaging().sendEachForMulticast({
       tokens: tokens,
       data: payload.data,
-      // Send data-only for calls. The service worker owns rendering the
-      // notification; including notification/webpush display fields here
-      // makes FCM render one notification automatically and the worker render
-      // a second one.
-      webpush: {
-        headers: payload.webpush.headers
-      }
+      notification: payload.notification,
+      webpush: payload.webpush
     });
 
     const tokensToRemove = [];

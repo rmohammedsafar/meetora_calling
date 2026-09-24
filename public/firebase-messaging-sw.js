@@ -26,6 +26,9 @@ messaging.onBackgroundMessage((payload) => {
   }
 
   const isCall = payload.data && payload.data.type === 'incoming_call';
+  // FCM automatically displays notification payloads in the background.
+  // Render manually only for legacy data-only pushes, avoiding duplicates.
+  if (payload.notification) return;
   const notificationTitle = payload.notification?.title || (isCall ? 'Incoming Call' : 'New Notification');
   const notificationOptions = {
     body: payload.notification?.body || (isCall ? 'Tap to answer call on Meetora' : ''),
