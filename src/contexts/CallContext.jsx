@@ -586,6 +586,28 @@ export const CallProvider = ({ children }) => {
     };
   }, [incomingCalls]);
 
+  // Keep the caller in sync when the callee declines or disconnects before
+  // WebRTC reaches connected. This covers delayed/missed VACT end events.
+  useEffect(() => {
+    if (!activeCall?.isCaller || !activeCall.id) return undefined;
+
+    const unsubscribe = onSnapshot(doc(db, 'calls', activeCall.id), (snap) => {
+      if (!snap.exists()) return;
+      const status = snap.data().status;
+      if (status !== 'declined' && status !== 'cancelled' && status !== 'ended') return;
+
+      console.log(`Remote ended call ${activeCall.id} with status ${status}`);
+      if (typeof activeCall.shutdown === 'function') activeCall.shutdown();
+      stopRingtone();
+      setActiveCall(null);
+      setCallState('idle');
+      localStorage.removeItem('meetora:call-busy');
+      setUserCallStatus('available');
+    });
+
+    return unsubscribe;
+  }, [activeCall]);
+
   // Handle network disconnects
   useEffect(() => {
     let disconnectTimer = null;

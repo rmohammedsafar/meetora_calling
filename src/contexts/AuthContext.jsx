@@ -104,6 +104,11 @@ export const AuthProvider = ({ children }) => {
         if (localStorage.getItem('meetora:call-busy') === 'true') {
           return;
         }
+        // When Meetora is currently visible, the in-page CallWidget is the
+        // call alert. Desktop/FCM notifications are only for background tabs.
+        if (document.visibilityState === 'visible') {
+          return;
+        }
         if (Notification.permission === 'granted') {
           const title = payload.notification?.title || 'Incoming Voice Call';
           const options = {
