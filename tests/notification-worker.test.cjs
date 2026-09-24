@@ -7,12 +7,13 @@ test('background push waits for notification display and cancellation', async ()
   let handler;
   let finish;
   let closed = false;
+  let shown;
   const display = new Promise(resolve => { finish = resolve; });
   const context = {
     importScripts() {}, console,
     firebase: { initializeApp() {}, messaging: () => ({ onBackgroundMessage(fn) { handler = fn; } }) },
     self: { addEventListener() {}, registration: {
-      showNotification: () => display,
+      showNotification: (title, options) => { shown = options; return display; },
       getNotifications: async () => [{ close() { closed = true; } }],
     } },
   };
@@ -23,9 +24,12 @@ test('background push waits for notification display and cancellation', async ()
   await result;
   await handler({ data: { type: 'call_cancelled', callId: 'test-call' } });
   assert.equal(closed, true);
-  assert.equal(handler({ notification: { title: 'FCM rendered' }, data: {
+  await handler({ notification: { title: 'FCM rendered' }, data: {
     type: 'incoming_call', callId: 'test-call',
-  } }), undefined, 'must not display a second notification');
+  } });
+  assert.equal(shown.tag, 'call-test-call');
+  assert.equal(shown.renotify, false);
+  assert.equal(shown.actions.map(a => a.action).join(','), 'answer,decline');
 });
 
 test('Answer and Decline decode FCM data and deliver acknowledged actions', async () => {

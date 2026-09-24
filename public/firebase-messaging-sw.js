@@ -28,14 +28,14 @@ messaging.onBackgroundMessage((payload) => {
   const isCall = payload.data && payload.data.type === 'incoming_call';
   // FCM automatically displays notification payloads in the background.
   // Render manually only for legacy data-only pushes, avoiding duplicates.
-  if (payload.notification) return;
+  if (payload.notification && !isCall) return;
   const notificationTitle = payload.notification?.title || (isCall ? 'Incoming Call' : 'New Notification');
   const notificationOptions = {
     body: payload.notification?.body || (isCall ? 'Tap to answer call on Meetora' : ''),
     icon: '/favicon.svg',
     badge: '/favicon.svg',
     tag: isCall ? ('call-' + payload.data.callId) : undefined,
-    renotify: true,
+    renotify: !payload.notification,
     requireInteraction: isCall ? true : false,
     vibrate: isCall ? [500, 250, 500, 250, 500, 250, 500] : [200, 100, 200],
     data: payload.data
@@ -49,6 +49,18 @@ messaging.onBackgroundMessage((payload) => {
   }
 
   // Firebase awaits this promise to keep the push event alive on mobile.
+  if (isCall && payload.notification) {
+    return self.registration.getNotifications().then(notifications => {
+      for (const notification of notifications) {
+        const data = notification.data?.FCM_MSG?.data || notification.data;
+        if (data?.callId === payload.data.callId && notification.tag !== notificationOptions.tag) {
+          notification.close();
+        }
+      }
+      // Replaces the automatic FCM card with the same tag, adding actions.
+      return self.registration.showNotification(notificationTitle, notificationOptions);
+    });
+  }
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
