@@ -77,7 +77,7 @@ function handleNotificationClick(event) {
     (async () => {
       // Persist BEFORE focusing: Android may reload a discarded tab, and its
       // incoming-call validation can run before any postMessage arrives.
-      if (notificationData.callId && ['answer', 'decline'].includes(action)) {
+      if (notificationData.callId) {
         const cache = await caches.open('meetora-call-action');
         await cache.put('/__call-action', new Response(JSON.stringify({
           type: 'CALL_ACTION', action, callId: notificationData.callId,
@@ -88,13 +88,10 @@ function handleNotificationClick(event) {
       for (const client of clientList) {
         if ('focus' in client) {
           return client.focus().then(async () => {
-            if (action === 'answer' || action === 'decline') {
+            if (notificationData.callId) {
               const message = { type: 'CALL_ACTION', action, callId: notificationData.callId };
-              // Mobile Chrome may resume the page after focus. Send once now
-              // and once shortly after React has had time to attach its
-              // service-worker message listener.
-              // Keep the worker alive and retry until the page acknowledges
-              // receipt. A suspended mobile tab can take longer than one second.
+              // Mobile Chrome may resume the page after focus. Keep worker alive
+              // and retry until the page acknowledges receipt.
               for (let attempt = 0; attempt < 10; attempt += 1) {
                 const received = await new Promise(resolve => {
                   const channel = new MessageChannel();
@@ -114,11 +111,11 @@ function handleNotificationClick(event) {
         }
       }
       if (clients.openWindow) {
-        const actionUrl = (action === 'answer' || action === 'decline')
-          ? `/?callAction=${encodeURIComponent(action)}&callId=${encodeURIComponent(notificationData.callId || '')}`
+        const actionUrl = notificationData.callId
+          ? `/?callAction=${encodeURIComponent(action)}&callId=${encodeURIComponent(notificationData.callId)}`
           : '/';
         return clients.openWindow(actionUrl).then((client) => {
-          if (client && (action === 'answer' || action === 'decline')) {
+          if (client && notificationData.callId) {
             client.postMessage({ type: 'CALL_ACTION', action, callId: notificationData.callId });
           }
         });

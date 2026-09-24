@@ -32,8 +32,8 @@ test('background push waits for notification display and cancellation', async ()
   assert.equal(shown.actions.map(a => a.action).join(','), 'answer,decline');
 });
 
-test('Answer and Decline decode FCM data and deliver acknowledged actions', async () => {
-  for (const action of ['answer', 'decline']) {
+test('Answer, Decline, and Card Click (open) decode FCM data and deliver acknowledged actions', async () => {
+  for (const action of ['answer', 'decline', 'open']) {
     let click;
     let work;
     let received;

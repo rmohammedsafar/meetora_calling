@@ -8,7 +8,7 @@ import './CallWidget.css';
 import { notificationIntent, loadNotificationIntent } from '../../utils/notificationIntent';
 
 const CallWidget = () => {
-  const { activeCall, callState, incomingCalls, acceptCall, declineCall, endCall } = useCall();
+  const { activeCall, callState, incomingCalls, isAcceptingCall, acceptCall, declineCall, endCall } = useCall();
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isSpeakerMuted, setIsSpeakerMuted] = useState(false);
@@ -226,9 +226,8 @@ const CallWidget = () => {
   // the incoming call. Preserve the action in memory until that call appears.
   useEffect(() => {
     const { action, callId } = notificationIntent;
-    if ((action === 'answer' || action === 'decline') && callId) {
+    if ((action === 'answer' || action === 'decline' || action === 'open') && callId) {
       pendingNotificationActionRef.current = { type: 'CALL_ACTION', action, callId };
-      window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
     }
   }, []);
 
@@ -322,17 +321,18 @@ const CallWidget = () => {
   useEffect(() => {
     const handleSWMessage = (event) => {
       if (event.data && event.data.type === 'CALL_ACTION') {
-        if (!event.data.callId || !['answer', 'decline'].includes(event.data.action)) return;
-        event.ports?.[0]?.postMessage({ received: true });
+        if (!event.data.callId || !['answer', 'decline', 'open'].includes(event.data.action)) return;
+        event.ports?.[0]?.postMessage?.({ received: true });
         Object.assign(notificationIntent, event.data, { expiresAt: Date.now() + 60000 });
         if (processedNotificationCalls.current.has(event.data.callId)) return;
         const call = incomingCalls.find(c => c.id === event.data.callId);
         if (call) {
-          processedNotificationCalls.current.add(call.id);
           if (event.data.action === 'answer') {
-            acceptCall(call);
+            processedNotificationCalls.current.add(call.id);
+            acceptCall(call).catch(e => console.warn('Widget accept error:', e));
           } else if (event.data.action === 'decline') {
-            declineCall(call);
+            processedNotificationCalls.current.add(call.id);
+            declineCall(call).catch(e => console.warn('Widget decline error:', e));
           }
         } else {
           pendingNotificationActionRef.current = event.data;
@@ -370,11 +370,12 @@ const CallWidget = () => {
 
     pendingNotificationActionRef.current = null;
     if (processedNotificationCalls.current.has(call.id)) return;
-    processedNotificationCalls.current.add(call.id);
     if (pending.action === 'answer') {
-      acceptCall(call);
+      processedNotificationCalls.current.add(call.id);
+      acceptCall(call).catch(e => console.warn('Pending accept error:', e));
     } else if (pending.action === 'decline') {
-      declineCall(call);
+      processedNotificationCalls.current.add(call.id);
+      declineCall(call).catch(e => console.warn('Pending decline error:', e));
     }
   }, [incomingCalls, acceptCall, declineCall]);
 
@@ -426,17 +427,24 @@ const CallWidget = () => {
               <Avatar name={callerName} size="large" />
               <h3>Incoming {incomingCalls[0].video ? 'Video' : 'Voice'} Call</h3>
               <p>{callerName}</p>
+              {isAcceptingCall && (
+                <p style={{ color: '#10b981', fontWeight: 600, marginTop: '8px', fontSize: '0.9rem' }}>
+                  Connecting call...
+                </p>
+              )}
             </div>
             <div className="incoming-actions">
               <button 
                 className="btn-call-action btn-decline" 
                 onClick={() => declineCall(incomingCalls[0])}
+                disabled={isAcceptingCall}
               >
                 <PhoneOff size={24} color="white" />
               </button>
               <button 
-                className="btn-call-action btn-accept" 
-                onClick={() => acceptCall(incomingCalls[0])}
+                className={`btn-call-action btn-accept ${isAcceptingCall ? 'accepting' : ''}`} 
+                onClick={() => acceptCall(incomingCalls[0]).catch(e => console.warn('Manual accept error:', e))}
+                disabled={isAcceptingCall}
               >
                 <Phone size={24} color="white" />
               </button>

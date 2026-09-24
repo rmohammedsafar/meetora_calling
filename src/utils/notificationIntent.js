@@ -12,7 +12,7 @@ export async function loadNotificationIntent() {
     const response = await cache.match('/__call-action');
     const pending = response && await response.json();
     if (pending?.callId && pending.expiresAt > Date.now() &&
-        ['answer', 'decline'].includes(pending.action)) {
+        ['answer', 'decline', 'open'].includes(pending.action)) {
       Object.assign(notificationIntent, pending);
     }
   } catch (error) {
@@ -23,5 +23,20 @@ export async function loadNotificationIntent() {
 
 export function isNotificationAnswer(callId) {
   return notificationIntent.action === 'answer' &&
-    notificationIntent.callId === callId && Date.now() < notificationIntent.expiresAt;
+    (!callId || notificationIntent.callId === callId) &&
+    Date.now() < notificationIntent.expiresAt;
+}
+
+export function isNotificationTarget(callId) {
+  return (!callId || notificationIntent.callId === callId) &&
+    Date.now() < notificationIntent.expiresAt;
+}
+
+export function clearNotificationIntent() {
+  notificationIntent.action = null;
+  notificationIntent.callId = null;
+  notificationIntent.expiresAt = 0;
+  try {
+    caches.open('meetora-call-action').then(cache => cache.delete('/__call-action')).catch(() => {});
+  } catch {}
 }

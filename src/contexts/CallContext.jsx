@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { VactClient } from '../utils/vactClient';
-import { isNotificationAnswer, loadNotificationIntent } from '../utils/notificationIntent';
+import { isNotificationAnswer, isNotificationTarget, clearNotificationIntent, loadNotificationIntent } from '../utils/notificationIntent';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
 import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc, getDocFromServer, updateDoc } from 'firebase/firestore';
@@ -24,7 +24,9 @@ export const CallProvider = ({ children }) => {
   }, [activeCall]);
   const [incomingCalls, setIncomingCalls] = useState([]);
   const incomingCallsRef = useRef([]);
+  const [isAcceptingCall, setIsAcceptingCall] = useState(false);
   const acceptCallRef = useRef(null);
+  const declineCallRef = useRef(null);
   const setIncomingCallsWithRef = (calls) => {
     incomingCallsRef.current = typeof calls === 'function' ? calls(incomingCallsRef.current) : calls;
     setIncomingCalls(calls);
@@ -59,8 +61,24 @@ export const CallProvider = ({ children }) => {
     let client = null;
     const onNotificationAction = async (event) => {
       if (event.data?.type !== 'CALL_ACTION') return;
+      event.ports?.[0]?.postMessage?.({ received: true });
       await loadNotificationIntent();
-      if (!isCancelled) client?.emitIncoming();
+      const action = event.data.action;
+      const targetCallId = event.data.callId;
+
+      if (!isCancelled && client) {
+        // If the ringing call is already present in state or client, apply action immediately
+        const existingCall = incomingCallsRef.current.find(c => c.id === targetCallId) || client.incoming.get(targetCallId);
+        if (existingCall) {
+          if (action === 'answer') {
+            acceptCallRef.current?.(existingCall)?.catch?.(e => console.warn('Failed auto-accepting call:', e));
+          } else if (action === 'decline') {
+            declineCallRef.current?.(existingCall)?.catch?.(e => console.warn('Failed declining call:', e));
+          }
+        } else {
+          client.emitIncoming();
+        }
+      }
     };
     navigator.serviceWorker?.addEventListener('message', onNotificationAction);
 
@@ -84,9 +102,6 @@ export const CallProvider = ({ children }) => {
         }
 
         client = new VactClient(appId);
-        const sessionStartedAt = Date.now();
-        // Firestore timestamp/status validation below handles stale VACT
-        // events, so new calls do not need to wait through a startup timer.
 
         // Track ringing calls globally
         client.onIncomingCalls((calls) => {
@@ -99,9 +114,6 @@ export const CallProvider = ({ children }) => {
             !hasHandledCall(c.id)
           );
 
-          // VACT replays every call that was already ringing when this
-          // session connects. Keep those calls out of the UI; they belong to
-          // the previous page session and are ghost calls after a reload.
           if (validIncoming.length === 0) {
             if (incomingCallsRef.current.length > 0) {
               console.log("No active incoming calls. Stopping ringtone.");
@@ -141,29 +153,26 @@ export const CallProvider = ({ children }) => {
             return;
           }
 
-          // VACT can deliver an old event after the startup quarantine. Use
-          // the Firestore call timestamp as a second server-side age check
-          // before showing the in-page popup.
+          // Verify call against Firestore record before displaying popup
           const verifyAndShowIncoming = async () => {
             try {
               await loadNotificationIntent();
-              let callSnap = await getDocFromServer(doc(db, 'calls', incomingToRing.id));
+              let callSnap = await getDoc(doc(db, 'calls', incomingToRing.id));
               // The caller writes Firestore immediately after VACT creates the
-              // call. Allow a short propagation window, but never show an
-              // incoming call with no verified Firestore record.
+              // call. Allow a short propagation window.
               for (let attempt = 0; attempt < 5 && !callSnap.exists(); attempt += 1) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                callSnap = await getDocFromServer(doc(db, 'calls', incomingToRing.id));
+                await new Promise(resolve => setTimeout(resolve, 800));
+                callSnap = await getDoc(doc(db, 'calls', incomingToRing.id));
               }
               if (isCancelled || hasHandledCall(incomingToRing.id)) return;
               const data = callSnap.exists() ? callSnap.data() : null;
               const createdAt = data?.createdAt;
-              const isStale = createdAt?.toMillis && createdAt.toMillis() < sessionStartedAt &&
-                !isNotificationAnswer(incomingToRing.id);
+              const createdAtMillis = createdAt?.toMillis ? createdAt.toMillis() : null;
+              const callAgeMs = createdAtMillis ? (Date.now() - createdAtMillis) : 0;
+              // An incoming call is only stale if it was created more than 60s ago AND was not targeted by a notification
+              const isStale = callAgeMs > 60000 && !isNotificationTarget(incomingToRing.id);
               const wrongRecipient = data?.calleeId !== currentUser.uid;
               if (!data || data.status !== 'ringing' || isStale || wrongRecipient) {
-                // Hiding a replay is a local decision, not a user decline.
-                // The notification action may still be arriving on resume.
                 console.info('Incoming call withheld', incomingToRing.id, {
                   status: data?.status, isStale, wrongRecipient,
                 });
@@ -178,16 +187,13 @@ export const CallProvider = ({ children }) => {
               playIncomingRingtone();
               // A mobile notification can be answered before VACT publishes
               // the incoming call object. Once the object arrives, consume
-              // the persisted action immediately instead of waiting for the
-              // in-page widget to render another cycle.
+              // the persisted action immediately.
               if (isNotificationAnswer(incomingToRing.id)) {
                 setTimeout(() => {
-                  acceptCallRef.current?.(incomingToRing);
+                  acceptCallRef.current?.(incomingToRing)?.catch?.(e => console.warn('Auto accept error:', e));
                 }, 0);
               }
             } catch (error) {
-              // Fail closed: an unverified event must never become a ghost
-              // popup. The caller can place a fresh call if needed.
               console.warn('Incoming call verification unavailable:', error.code || error.name);
             }
           };
@@ -475,21 +481,21 @@ export const CallProvider = ({ children }) => {
   const acceptCall = async (incomingCall) => {
     if (isTransitioningRef.current) return;
     isTransitioningRef.current = true;
-    // Mark it before the asynchronous SDK accept so a repeated event cannot
-    // put the same ringing call back into the popup during the transition.
-    addHandledCallId(incomingCall.id);
+    setIsAcceptingCall(true);
     stopRingtone();
-    setIncomingCallsWithRef(prev => prev.filter(c => c.id !== incomingCall.id));
     try {
       const call = await incomingCall.accept({ video: incomingCall.video, audio: true });
       
+      addHandledCallId(incomingCall.id);
+      clearNotificationIntent();
+
       updateDoc(doc(db, 'calls', incomingCall.id), {
         status: 'connected',
         connectedAt: serverTimestamp()
       }).catch(() => {});
 
       // Auto-decline any other ghost calls to prevent them popping up later
-      incomingCalls.forEach(c => {
+      incomingCallsRef.current.forEach(c => {
         if (c.id !== incomingCall.id) {
           c.decline().catch(e => console.warn('Ghost decline failed', e));
           addHandledCallId(c.id);
@@ -497,6 +503,7 @@ export const CallProvider = ({ children }) => {
       });
       handleCallDisconnect(call);
       setActiveCall(call);
+      setIncomingCallsWithRef([]);
       localStorage.setItem('meetora:call-busy', 'true');
       setUserCallStatus('busy');
       return call;
@@ -504,19 +511,20 @@ export const CallProvider = ({ children }) => {
       console.error('Failed to accept call:', error);
       throw error;
     } finally {
+      setIsAcceptingCall(false);
       isTransitioningRef.current = false;
     }
   };
 
-  // The VACT listener above is created before acceptCall is declared. Keep a
-  // ref to the latest callback so a queued notification action can safely
-  // trigger acceptance when the matching call finally arrives.
+  // Keep refs up to date so service worker actions can invoke them safely
   acceptCallRef.current = acceptCall;
 
   // Helper to decline a call
   const declineCall = async (incomingCall) => {
     addHandledCallId(incomingCall.id);
     stopRingtone();
+    clearNotificationIntent();
+    setIncomingCallsWithRef(prev => prev.filter(c => c.id !== incomingCall.id));
     try {
       await incomingCall.decline();
 
@@ -550,17 +558,18 @@ export const CallProvider = ({ children }) => {
       });
       
       // Auto-decline any other duplicate ghost calls from the same person
-      incomingCalls.forEach(c => {
+      incomingCallsRef.current.forEach(c => {
         if (c.id !== incomingCall.id && c.fromUserId === incomingCall.fromUserId) {
           c.decline().catch(e => console.warn('Ghost decline failed', e));
           addHandledCallId(c.id);
         }
       });
-      setIncomingCallsWithRef(prev => prev.filter(c => c.id !== incomingCall.id));
     } catch (error) {
       console.error('Failed to decline call:', error);
     }
   };
+
+  declineCallRef.current = declineCall;
 
   // Helper to end active call
   const endCall = () => {
@@ -722,6 +731,7 @@ export const CallProvider = ({ children }) => {
     callState,
     setActiveCall,
     incomingCalls,
+    isAcceptingCall,
     placeCall,
     acceptCall,
     declineCall,

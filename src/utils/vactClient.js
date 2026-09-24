@@ -20,23 +20,34 @@ export class VactClient extends SDKClient {
   }
 
   async accept(incoming, options) {
-    const id = incoming.callId;
-    this.acceptingCalls.add(id);
+    const id = incoming?.callId || incoming?.id;
+    if (id) this.acceptingCalls.add(id);
     try {
       const call = await super.accept(incoming, options);
-      const candidates = this.earlyCandidates.get(id) || [];
-      this.earlyCandidates.delete(id);
-      for (const candidate of candidates) {
-        try {
-          await call.pc.addIceCandidate(candidate);
-        } catch (error) {
-          console.warn('VACT buffered ICE candidate could not be applied:', error.name);
+      if (id) {
+        const candidates = this.earlyCandidates.get(id) || [];
+        this.earlyCandidates.delete(id);
+        for (const candidate of candidates) {
+          try {
+            await call.pc.addIceCandidate(candidate);
+          } catch (error) {
+            console.warn('VACT buffered ICE candidate could not be applied:', error.name);
+          }
         }
       }
       return call;
     } finally {
-      this.acceptingCalls.delete(id);
-      this.earlyCandidates.delete(id);
+      if (id) {
+        this.acceptingCalls.delete(id);
+        this.earlyCandidates.delete(id);
+      }
+    }
+  }
+
+  async renew(accessToken) {
+    await super.renew(accessToken);
+    if (!this.stopped && this.sessionToken) {
+      this.listen();
     }
   }
 
