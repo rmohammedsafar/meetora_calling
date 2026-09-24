@@ -3,7 +3,7 @@ import { VactClient } from '../utils/vactClient';
 import { isNotificationAnswer, loadNotificationIntent } from '../utils/notificationIntent';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
-import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc, getDocFromServer, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 
 const CallContext = createContext();
@@ -56,9 +56,16 @@ export const CallProvider = ({ children }) => {
   useEffect(() => {
     let isCancelled = false;
     let client = null;
+    const onNotificationAction = async (event) => {
+      if (event.data?.type !== 'CALL_ACTION') return;
+      await loadNotificationIntent();
+      if (!isCancelled) client?.emitIncoming();
+    };
+    navigator.serviceWorker?.addEventListener('message', onNotificationAction);
 
     // Only connect if we have a logged-in user
     if (!currentUser) {
+      navigator.serviceWorker?.removeEventListener('message', onNotificationAction);
       if (vact) {
         if (typeof vact.disconnect === 'function') vact.disconnect();
         setIsVactConnected(false);
@@ -139,13 +146,13 @@ export const CallProvider = ({ children }) => {
           const verifyAndShowIncoming = async () => {
             try {
               await loadNotificationIntent();
-              let callSnap = await getDoc(doc(db, 'calls', incomingToRing.id));
+              let callSnap = await getDocFromServer(doc(db, 'calls', incomingToRing.id));
               // The caller writes Firestore immediately after VACT creates the
               // call. Allow a short propagation window, but never show an
               // incoming call with no verified Firestore record.
               for (let attempt = 0; attempt < 5 && !callSnap.exists(); attempt += 1) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
-                callSnap = await getDoc(doc(db, 'calls', incomingToRing.id));
+                callSnap = await getDocFromServer(doc(db, 'calls', incomingToRing.id));
               }
               if (isCancelled || hasHandledCall(incomingToRing.id)) return;
               const data = callSnap.exists() ? callSnap.data() : null;
@@ -154,27 +161,24 @@ export const CallProvider = ({ children }) => {
                 !isNotificationAnswer(incomingToRing.id);
               const wrongRecipient = data?.calleeId !== currentUser.uid;
               if (!data || data.status !== 'ringing' || isStale || wrongRecipient) {
-                addHandledCallId(incomingToRing.id);
-                incomingToRing.decline().catch(() => {});
-                const remainingCalls = validIncoming.filter(call => call.id !== incomingToRing.id);
-                if (remainingCalls.length > 0 && !isCancelled) {
-                  // Another simultaneous call may still be valid. Keep it
-                  // available so its notification Answer action can work.
-                  setIncomingCallsWithRef(remainingCalls);
-                  playIncomingRingtone();
-                }
+                // Hiding a replay is a local decision, not a user decline.
+                // The notification action may still be arriving on resume.
+                console.info('Incoming call withheld', incomingToRing.id, {
+                  status: data?.status, isStale, wrongRecipient,
+                });
                 return;
               }
               console.log("Ringing incoming call from:", incomingToRing.fromUserId, "ID:", incomingToRing.id);
               // Keep simultaneous calls available for notification actions;
               // the UI still presents the first one.
-              setIncomingCallsWithRef(validIncoming);
+              if (activeCallRef.current || isTransitioningRef.current ||
+                  !client.incoming.has(incomingToRing.id)) return;
+              setIncomingCallsWithRef([incomingToRing]);
               playIncomingRingtone();
             } catch (error) {
               // Fail closed: an unverified event must never become a ghost
               // popup. The caller can place a fresh call if needed.
-              addHandledCallId(incomingToRing.id);
-              incomingToRing.decline().catch(() => {});
+              console.warn('Incoming call verification unavailable:', error.code || error.name);
             }
           };
           verifyAndShowIncoming();
@@ -248,6 +252,7 @@ export const CallProvider = ({ children }) => {
 
     return () => {
       isCancelled = true;
+      navigator.serviceWorker?.removeEventListener('message', onNotificationAction);
       if (client && typeof client.disconnect === 'function') {
         client.disconnect();
       }
