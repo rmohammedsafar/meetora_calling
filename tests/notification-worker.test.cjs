@@ -34,15 +34,22 @@ test('Answer and Decline decode FCM data and deliver acknowledged actions', asyn
     let work;
     let received;
     let stopped = false;
+    let saved;
     const client = {
-      focus: async () => client,
+      focus: async () => {
+        assert.equal(saved.action, action, 'persist action before waking page');
+        return client;
+      },
       postMessage(message, ports) {
         received = message;
         ports[0].postMessage({ received: true });
       },
     };
     const context = {
-      importScripts() {}, console, setTimeout, clearTimeout,
+      importScripts() {}, console, setTimeout, clearTimeout, Response,
+      caches: { open: async () => ({ put: async (key, response) => {
+        saved = await response.json();
+      } }) },
       MessageChannel: require('node:worker_threads').MessageChannel,
       firebase: { initializeApp() {}, messaging: () => ({ onBackgroundMessage() {} }) },
       clients: { matchAll: async () => [client] },

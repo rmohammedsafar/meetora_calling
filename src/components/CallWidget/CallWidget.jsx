@@ -5,7 +5,7 @@ import Avatar from '../Avatar/Avatar';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import './CallWidget.css';
-import { notificationIntent } from '../../utils/notificationIntent';
+import { notificationIntent, loadNotificationIntent } from '../../utils/notificationIntent';
 
 const CallWidget = () => {
   const { activeCall, callState, incomingCalls, acceptCall, declineCall, endCall } = useCall();
@@ -340,11 +340,19 @@ const CallWidget = () => {
       }
     };
 
+    let disposed = false;
+    loadNotificationIntent().then(intent => {
+      if (!disposed && intent.expiresAt > Date.now()) {
+        handleSWMessage({ data: { ...intent, type: 'CALL_ACTION' } });
+      }
+    });
+
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', handleSWMessage);
     }
 
     return () => {
+      disposed = true;
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', handleSWMessage);
       }

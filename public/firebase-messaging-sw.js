@@ -62,7 +62,17 @@ function handleNotificationClick(event) {
   event.notification.close();
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    (async () => {
+      // Persist BEFORE focusing: Android may reload a discarded tab, and its
+      // incoming-call validation can run before any postMessage arrives.
+      if (notificationData.callId && ['answer', 'decline'].includes(action)) {
+        const cache = await caches.open('meetora-call-action');
+        await cache.put('/__call-action', new Response(JSON.stringify({
+          type: 'CALL_ACTION', action, callId: notificationData.callId,
+          expiresAt: Date.now() + 60000,
+        }), { headers: { 'Content-Type': 'application/json' } }));
+      }
+      const clientList = await clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of clientList) {
         if ('focus' in client) {
           return client.focus().then(async () => {
@@ -101,6 +111,6 @@ function handleNotificationClick(event) {
           }
         });
       }
-    })
+    })()
   );
 }

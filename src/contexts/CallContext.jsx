@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { VactClient } from '../utils/vactClient';
-import { isNotificationAnswer } from '../utils/notificationIntent';
+import { isNotificationAnswer, loadNotificationIntent } from '../utils/notificationIntent';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
 import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
@@ -138,6 +138,7 @@ export const CallProvider = ({ children }) => {
           // before showing the in-page popup.
           const verifyAndShowIncoming = async () => {
             try {
+              await loadNotificationIntent();
               let callSnap = await getDoc(doc(db, 'calls', incomingToRing.id));
               // The caller writes Firestore immediately after VACT creates the
               // call. Allow a short propagation window, but never show an
