@@ -322,6 +322,9 @@ const CallWidget = () => {
   useEffect(() => {
     const handleSWMessage = (event) => {
       if (event.data && event.data.type === 'CALL_ACTION') {
+        if (!event.data.callId || !['answer', 'decline'].includes(event.data.action)) return;
+        event.ports?.[0]?.postMessage({ received: true });
+        Object.assign(notificationIntent, event.data, { expiresAt: Date.now() + 60000 });
         if (processedNotificationCalls.current.has(event.data.callId)) return;
         const call = incomingCalls.find(c => c.id === event.data.callId);
         if (call) {

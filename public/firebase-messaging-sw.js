@@ -1,3 +1,5 @@
+// Register before Firebase so our call actions own their click handling.
+self.addEventListener('notificationclick', handleNotificationClick);
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.8.0/firebase-messaging-compat.js');
 
@@ -48,9 +50,12 @@ messaging.onBackgroundMessage((payload) => {
 });
 
 // When user taps on the notification, focus or open the Meetora app
-self.addEventListener('notificationclick', (event) => {
+function handleNotificationClick(event) {
   const action = event.action || 'open';
-  const notificationData = event.notification.data || {};
+  const rawData = event.notification.data || {};
+  // Automatically displayed FCM notifications wrap application data.
+  const notificationData = rawData.FCM_MSG?.data || rawData;
+  if (notificationData.type === 'incoming_call') event.stopImmediatePropagation();
   event.notification.close();
 
   event.waitUntil(
@@ -63,9 +68,22 @@ self.addEventListener('notificationclick', (event) => {
               // Mobile Chrome may resume the page after focus. Send once now
               // and once shortly after React has had time to attach its
               // service-worker message listener.
-              client.postMessage(message);
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              client.postMessage(message);
+              // Keep the worker alive and retry until the page acknowledges
+              // receipt. A suspended mobile tab can take longer than one second.
+              for (let attempt = 0; attempt < 10; attempt += 1) {
+                const received = await new Promise(resolve => {
+                  const channel = new MessageChannel();
+                  const finish = value => {
+                    clearTimeout(timer);
+                    channel.port1.close();
+                    resolve(value);
+                  };
+                  const timer = setTimeout(() => finish(false), 1000);
+                  channel.port1.onmessage = () => finish(true);
+                  client.postMessage(message, [channel.port2]);
+                });
+                if (received) break;
+              }
             }
           });
         }
@@ -82,4 +100,4 @@ self.addEventListener('notificationclick', (event) => {
       }
     })
   );
-});
+}
