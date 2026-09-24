@@ -5,6 +5,7 @@ import Avatar from '../Avatar/Avatar';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import './CallWidget.css';
+import { notificationIntent } from '../../utils/notificationIntent';
 
 const CallWidget = () => {
   const { activeCall, callState, incomingCalls, acceptCall, declineCall, endCall } = useCall();
@@ -216,6 +217,7 @@ const CallWidget = () => {
   const activeNotificationTag = useRef(null);
   const directNotificationRef = useRef(null);
   const pendingNotificationActionRef = useRef(null);
+  const processedNotificationCalls = useRef(new Set());
   // FCM is the single owner of browser call notifications. This component
   // still renders the in-page call UI and handles notification actions.
   const fcmOwnsCallNotifications = true;
@@ -223,9 +225,7 @@ const CallWidget = () => {
   // A service-worker click can open a new tab before React/VACT has published
   // the incoming call. Preserve the action in memory until that call appears.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const action = params.get('callAction');
-    const callId = params.get('callId');
+    const { action, callId } = notificationIntent;
     if ((action === 'answer' || action === 'decline') && callId) {
       pendingNotificationActionRef.current = { type: 'CALL_ACTION', action, callId };
       window.history.replaceState({}, document.title, window.location.pathname + window.location.hash);
@@ -322,8 +322,10 @@ const CallWidget = () => {
   useEffect(() => {
     const handleSWMessage = (event) => {
       if (event.data && event.data.type === 'CALL_ACTION') {
+        if (processedNotificationCalls.current.has(event.data.callId)) return;
         const call = incomingCalls.find(c => c.id === event.data.callId);
         if (call) {
+          processedNotificationCalls.current.add(call.id);
           if (event.data.action === 'answer') {
             acceptCall(call);
           } else if (event.data.action === 'decline') {
@@ -356,6 +358,8 @@ const CallWidget = () => {
     if (!call) return;
 
     pendingNotificationActionRef.current = null;
+    if (processedNotificationCalls.current.has(call.id)) return;
+    processedNotificationCalls.current.add(call.id);
     if (pending.action === 'answer') {
       acceptCall(call);
     } else if (pending.action === 'decline') {

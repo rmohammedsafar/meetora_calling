@@ -57,14 +57,15 @@ self.addEventListener('notificationclick', (event) => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          return client.focus().then(() => {
+          return client.focus().then(async () => {
             if (action === 'answer' || action === 'decline') {
               const message = { type: 'CALL_ACTION', action, callId: notificationData.callId };
               // Mobile Chrome may resume the page after focus. Send once now
               // and once shortly after React has had time to attach its
               // service-worker message listener.
               client.postMessage(message);
-              setTimeout(() => client.postMessage(message), 1000);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              client.postMessage(message);
             }
           });
         }

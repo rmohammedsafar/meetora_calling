@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { VactClient } from '../utils/vactClient';
+import { isNotificationAnswer } from '../utils/notificationIntent';
 import { useAuth } from './AuthContext';
 import { playIncomingRingtone, playOutgoingRingtone, stopRingtone } from '../utils/ringtone';
 import { doc, setDoc, serverTimestamp, addDoc, collection, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
@@ -148,8 +149,10 @@ export const CallProvider = ({ children }) => {
               if (isCancelled || hasHandledCall(incomingToRing.id)) return;
               const data = callSnap.exists() ? callSnap.data() : null;
               const createdAt = data?.createdAt;
-              const isStale = createdAt?.toMillis && createdAt.toMillis() < sessionStartedAt;
-              if (!data || data.status !== 'ringing' || isStale) {
+              const isStale = createdAt?.toMillis && createdAt.toMillis() < sessionStartedAt &&
+                !isNotificationAnswer(incomingToRing.id);
+              const wrongRecipient = data?.calleeId !== currentUser.uid;
+              if (!data || data.status !== 'ringing' || isStale || wrongRecipient) {
                 addHandledCallId(incomingToRing.id);
                 incomingToRing.decline().catch(() => {});
                 const remainingCalls = validIncoming.filter(call => call.id !== incomingToRing.id);
