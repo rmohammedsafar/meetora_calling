@@ -304,7 +304,13 @@ export const CallProvider = ({ children }) => {
       // Monitor WebRTC native connection state for fast drop on ungraceful exits
       // We only arm this AFTER the call has successfully connected to avoid breaking slow setups
       if (call.pc) {
+        call.pc.addEventListener('iceconnectionstatechange', () => {
+          console.log('[WebRTC Debug] iceConnectionState changed to:', call.pc.iceConnectionState);
+        });
+        
         call.pc.addEventListener('connectionstatechange', () => {
+          console.log('[WebRTC Debug] connectionState changed to:', call.pc.connectionState);
+          
           if (call.pc.connectionState === 'connected') {
             hasConnected = true;
             if (rtcDisconnectTimer) {
