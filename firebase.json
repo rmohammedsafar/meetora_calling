@@ -3,6 +3,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
+    "site": "meetora-39ab0",
     "public": "dist",
     "ignore": [
       "firebase.json",
