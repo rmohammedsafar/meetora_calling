@@ -24,6 +24,7 @@ export const CallProvider = ({ children }) => {
   }, [activeCall]);
   const [incomingCalls, setIncomingCalls] = useState([]);
   const incomingCallsRef = useRef([]);
+  const acceptCallRef = useRef(null);
   const setIncomingCallsWithRef = (calls) => {
     incomingCallsRef.current = typeof calls === 'function' ? calls(incomingCallsRef.current) : calls;
     setIncomingCalls(calls);
@@ -175,6 +176,15 @@ export const CallProvider = ({ children }) => {
                   !client.incoming.has(incomingToRing.id)) return;
               setIncomingCallsWithRef([incomingToRing]);
               playIncomingRingtone();
+              // A mobile notification can be answered before VACT publishes
+              // the incoming call object. Once the object arrives, consume
+              // the persisted action immediately instead of waiting for the
+              // in-page widget to render another cycle.
+              if (isNotificationAnswer(incomingToRing.id)) {
+                setTimeout(() => {
+                  acceptCallRef.current?.(incomingToRing);
+                }, 0);
+              }
             } catch (error) {
               // Fail closed: an unverified event must never become a ghost
               // popup. The caller can place a fresh call if needed.
@@ -497,6 +507,11 @@ export const CallProvider = ({ children }) => {
       isTransitioningRef.current = false;
     }
   };
+
+  // The VACT listener above is created before acceptCall is declared. Keep a
+  // ref to the latest callback so a queued notification action can safely
+  // trigger acceptance when the matching call finally arrives.
+  acceptCallRef.current = acceptCall;
 
   // Helper to decline a call
   const declineCall = async (incomingCall) => {
